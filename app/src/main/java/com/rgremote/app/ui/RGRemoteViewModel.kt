@@ -1,0 +1,798 @@
+package com.rgremote.app.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rgremote.app.data.apps.AppPinStore
+import com.rgremote.app.data.preferences.RemoteUiPreferences
+import com.rgremote.app.data.registry.DeviceRegistry
+import com.rgremote.app.domain.canonicalDevicesPerType
+import com.rgremote.app.discovery.DiscoveryService
+import com.rgremote.app.domain.ActiveApp
+import com.rgremote.app.domain.AppLaunchTarget
+import com.rgremote.app.domain.AppTargetSource
+import com.rgremote.app.domain.DeviceType
+import com.rgremote.app.domain.DpadDirection
+import com.rgremote.app.domain.HdmiPort
+import com.rgremote.app.domain.ManualDeviceEndpoint
+import com.rgremote.app.domain.RegisteredDevice
+import com.rgremote.app.domain.RemoteAdapter
+import com.rgremote.app.domain.RemoteCommand
+import com.rgremote.app.domain.RokuApp
+import com.rgremote.app.domain.RokuDeviceInfo
+import com.rgremote.app.domain.VolumeCommand
+import com.rgremote.app.google.GoogleTvPairingManager
+import com.rgremote.app.roku.RokuConnectionCoordinator
+import com.rgremote.app.roku.RokuEcpClient
+import com.rgremote.app.roku.RokuNetworkAccessException
+import com.rgremote.app.roku.RokuPowerMode
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+enum class RemoteTab {
+    REMOTE,
+    APPS,
+    SETTINGS
+}
+
+enum class ConnectionStatus(val label: String) {
+    ONLINE("Online"),
+    OFFLINE("Offline"),
+    CHECKING("Checking"),
+    PAIRED("Paired"),
+    NOT_PAIRED("Not paired"),
+    CONNECTION_FAILED("Connection failed"),
+    WAKE_UNAVAILABLE("Wake unavailable")
+}
+
+data class RokuControlAvailability(
+    val supportsPowerOff: Boolean? = null,
+    val supportsVolume: Boolean? = null,
+    val supportsInputSwitching: Boolean? = null,
+) {
+    fun supports(command: RemoteCommand): Boolean =
+        when (command) {
+            RemoteCommand.PowerOff -> supportsPowerOff != false
+            is RemoteCommand.Volume -> supportsVolume != false
+            is RemoteCommand.SetInput -> supportsInputSwitching != false
+            else -> true
+        }
+}
+
+data class RGRemoteUiState(
+    val devices: List<RegisteredDevice> = emptyList(),
+    val pairedDeviceIds: Set<String> = emptySet(),
+    val pinnedApps: List<AppLaunchTarget> = emptyList(),
+    val selectedDeviceId: String? = null,
+    val activeApp: ActiveApp? = null,
+    val selectedTab: RemoteTab = RemoteTab.REMOTE,
+    val rokuApps: List<RokuApp> = emptyList(),
+    val isScanning: Boolean = false,
+    val isLoadingApps: Boolean = false,
+    val isPairing: Boolean = false,
+    val pairingSessionDeviceId: String? = null,
+    val pairingPin: String = "",
+    val launchTarget: String = "",
+    val connectionStatus: ConnectionStatus = ConnectionStatus.CHECKING,
+    val diagnosticMessage: String? = null,
+    val userFeedback: String? = null,
+    val showFeedback: Boolean = false,
+    val googleDiscoveryRunning: Boolean = false,
+    val rokuControlsByDeviceId: Map<String, RokuControlAvailability> = emptyMap(),
+    val rokuPowerModeByDeviceId: Map<String, String> = emptyMap(),
+    val showConnectionGuide: Boolean = true,
+    val showUtilitiesDock: Boolean = true,
+) {
+    val inferredHdmiPort: HdmiPort?
+        get() = activeApp?.inferredHdmiPort
+
+    val inputHintText: String?
+        get() = inferredHdmiPort?.let { port -> "Likely input: ${port.displayName} (hint)" }
+    val selectedDevice: RegisteredDevice? =
+        devices.firstOrNull { it.id == selectedDeviceId } ?: devices.firstOrNull()
+
+    val rokuDevice: RegisteredDevice? =
+        devices.firstOrNull { it.type == DeviceType.ROKU_TV }
+
+    val googleTvDevice: RegisteredDevice? =
+        devices.firstOrNull { it.type == DeviceType.GOOGLE_TV }
+
+    val isGoogleTvPaired: Boolean =
+        googleTvDevice?.id?.let { pairedDeviceIds.contains(it) } == true
+
+    val selectedRokuControls: RokuControlAvailability =
+        rokuDevice?.id?.let { rokuControlsByDeviceId[it] } ?: RokuControlAvailability()
+
+    val selectedRokuPowerMode: String?
+        get() = rokuDevice?.id?.let { rokuPowerModeByDeviceId[it] }
+}
+
+class RGRemoteViewModel(
+    private val registry: DeviceRegistry,
+    private val discoveryService: DiscoveryService,
+    private val rokuAdapter: RokuEcpClient,
+    private val googleTvAdapter: RemoteAdapter,
+    private val pairingManager: GoogleTvPairingManager,
+    private val appPinStore: AppPinStore,
+    private val uiPreferences: RemoteUiPreferences,
+) : ViewModel() {
+    private val localState = MutableStateFlow(RGRemoteUiState())
+    private var startupDiscoveryStarted = false
+    private var feedbackClearJob: Job? = null
+    private val rokuConnection = RokuConnectionCoordinator(discoveryService, registry, rokuAdapter)
+
+    val uiState: StateFlow<RGRemoteUiState> =
+        combine(
+            combine(
+                registry.devices,
+                registry.pairedDeviceIds,
+                appPinStore.pinnedApps,
+            ) { devices, pairedIds, pins ->
+                Triple(devices, pairedIds, pins)
+            },
+            combine(
+                uiPreferences.showConnectionGuide,
+                uiPreferences.showUtilitiesDock,
+                localState,
+            ) { showGuide, showUtilities, state ->
+                Triple(showGuide, showUtilities, state)
+            },
+        ) { deviceSnapshot, uiSnapshot ->
+            val (devices, pairedIds, pins) = deviceSnapshot
+            val (showGuide, showUtilities, state) = uiSnapshot
+            val canonical = devices.canonicalDevicesPerType()
+            val selected = state.selectedDeviceId?.takeIf { id -> canonical.any { it.id == id } }
+                ?: canonical.firstOrNull()?.id
+            state.copy(
+                devices = canonical,
+                pairedDeviceIds = pairedIds,
+                pinnedApps = pins,
+                selectedDeviceId = selected,
+                showConnectionGuide = showGuide,
+                showUtilitiesDock = showUtilities,
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RGRemoteUiState())
+
+    init {
+        viewModelScope.launch { registry.dedupeStoredDevices() }
+        discoveryService.saveAsync = { device ->
+            viewModelScope.launch { registry.upsertDiscoveredDevice(device) }
+        }
+    }
+
+    fun setShowConnectionGuide(show: Boolean) {
+        uiPreferences.setShowConnectionGuide(show)
+        if (!show) {
+            setCommandFeedback("Connection guide hidden. Re-enable in Settings.")
+        }
+    }
+
+    fun setShowUtilitiesDock(show: Boolean) {
+        uiPreferences.setShowUtilitiesDock(show)
+        setCommandFeedback(if (show) "Utilities shown on Remote" else "Utilities hidden on Remote")
+    }
+
+    fun removeSavedDevice(deviceId: String) {
+        viewModelScope.launch {
+            registry.removeDevice(deviceId)
+            localState.update { state ->
+                state.copy(selectedDeviceId = if (state.selectedDeviceId == deviceId) null else state.selectedDeviceId)
+            }
+            setCommandFeedback("Removed saved device")
+        }
+    }
+
+    fun dedupeSavedDevices() {
+        viewModelScope.launch {
+            registry.dedupeStoredDevices()
+            setCommandFeedback("Merged duplicate saved TVs")
+        }
+    }
+
+    fun stopDiscovery() {
+        discoveryService.stopGoogleTvDiscovery()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopDiscovery()
+    }
+
+    fun selectDevice(deviceId: String) {
+        localState.update { it.copy(selectedDeviceId = deviceId) }
+        refreshStatusForDevice(deviceId)
+    }
+
+    fun clearUserFeedback() {
+        setCommandFeedback(null)
+    }
+
+    /** Selects a Google TV device for remote control without starting pairing. */
+    fun selectGoogleDevice(deviceId: String) {
+        val exists = uiState.value.devices.any { it.id == deviceId && it.type == DeviceType.GOOGLE_TV }
+        if (!exists) {
+            setCommandFeedback("Google TV device not found")
+            return
+        }
+        localState.update { it.copy(selectedDeviceId = deviceId) }
+    }
+
+    fun selectTab(tab: RemoteTab) {
+        localState.update { it.copy(selectedTab = tab) }
+        if ((tab == RemoteTab.APPS) && (uiState.value.selectedDevice?.type == DeviceType.ROKU_TV) && uiState.value.rokuApps.isEmpty()) {
+            refreshRokuChannels()
+        }
+    }
+
+    fun scan() {
+        viewModelScope.launch {
+            setStatus(ConnectionStatus.CHECKING)
+            setDiagnostic("Scanning LAN for Roku devices")
+            localState.update { it.copy(isScanning = true) }
+            val count = runCatching { discoveryService.scanRoku() }
+                .onFailure { error ->
+                    setStatus(ConnectionStatus.CONNECTION_FAILED)
+                    setDiagnostic("Roku scan failed: ${error.displayMessage()}")
+                }
+                .getOrDefault(0)
+            val discoveredRoku = if (count > 0) {
+                registry.devices.first().firstOrNull { it.type == DeviceType.ROKU_TV }
+            } else {
+                null
+            }
+            localState.update {
+                it.copy(
+                    isScanning = false,
+                    selectedDeviceId = it.selectedDeviceId ?: discoveredRoku?.id,
+                    connectionStatus = when {
+                        count == 0 -> ConnectionStatus.OFFLINE
+                        discoveredRoku != null -> ConnectionStatus.CHECKING
+                        else -> ConnectionStatus.OFFLINE
+                    },
+                    diagnosticMessage = when {
+                        count == 0 -> "No Roku SSDP replies received"
+                        discoveredRoku != null -> "Verifying Roku ECP on saved device..."
+                        else -> "Found $count Roku device(s) but none matched saved TV"
+                    },
+                )
+            }
+            discoveredRoku?.let { refreshRokuStatus(it) }
+        }
+    }
+
+    fun startGoogleDiscovery() {
+        runCatching {
+            discoveryService.startGoogleTvDiscovery { error ->
+                setStatus(ConnectionStatus.CONNECTION_FAILED)
+                setDiagnostic(error)
+            }
+        }
+            .onSuccess { localState.update { it.copy(googleDiscoveryRunning = true) } }
+            .onFailure {
+                setStatus(ConnectionStatus.CONNECTION_FAILED)
+                setDiagnostic("Google TV discovery failed: ${it.message}")
+            }
+    }
+
+    fun onNearbyWifiPermissionResult(granted: Boolean) {
+        if (startupDiscoveryStarted) return
+        startupDiscoveryStarted = true
+        localState.update {
+            it.copy(
+                connectionStatus = ConnectionStatus.CHECKING,
+                diagnosticMessage = if (granted) {
+                    "Nearby Wi-Fi allowed; scanning LAN"
+                } else {
+                    "Nearby Wi-Fi denied; discovery may be limited"
+                },
+            )
+        }
+        startGoogleDiscovery()
+        scan()
+    }
+
+    fun updatePairingPin(pin: String) {
+        localState.update { it.copy(pairingPin = pin.take(6).uppercase()) }
+    }
+
+    fun updateLaunchTarget(target: String) {
+        localState.update { it.copy(launchTarget = target) }
+    }
+
+    fun refreshRokuChannels() {
+        val roku = uiState.value.rokuDevice ?: return setCommandFeedback("Add a Roku TV first")
+        viewModelScope.launch {
+            localState.update {
+                it.copy(
+                    isLoadingApps = true,
+                    connectionStatus = ConnectionStatus.CHECKING,
+                    diagnosticMessage = "Refreshing Roku channels",
+                )
+            }
+            rokuConnection.queryApps(roku)
+                .onSuccess { apps ->
+                    registry.markCommandSuccess(roku)
+                    localState.update {
+                        it.copy(
+                            rokuApps = apps.sortedBy { app -> app.name.lowercase() },
+                            isLoadingApps = false,
+                            connectionStatus = ConnectionStatus.ONLINE,
+                            diagnosticMessage = "Found ${apps.size} Roku channel(s)",
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    registry.markCommandFailure(roku)
+                    localState.update {
+                        it.copy(
+                            isLoadingApps = false,
+                            connectionStatus = ConnectionStatus.CONNECTION_FAILED,
+                            diagnosticMessage = "Roku channel refresh failed: ${error.displayMessage()}",
+                        )
+                    }
+                }
+        }
+    }
+
+    fun pinRokuChannel(app: RokuApp) {
+        appPinStore.upsert(
+            AppLaunchTarget(
+                id = AppPinStore.targetId(DeviceType.ROKU_TV, app.id),
+                deviceType = DeviceType.ROKU_TV,
+                displayName = app.name,
+                launchValue = app.id,
+                source = AppTargetSource.DISCOVERED,
+            ),
+        )
+        setCommandFeedback("Pinned ${app.name}")
+    }
+
+    fun saveGoogleTvApp(displayName: String, launchValue: String) {
+        val name = displayName.trim()
+        val value = launchValue.trim()
+        if (name.isBlank() || value.isBlank()) {
+            setCommandFeedback("Enter an app name and package or deep link")
+            return
+        }
+        appPinStore.upsert(
+            AppLaunchTarget(
+                id = AppPinStore.targetId(DeviceType.GOOGLE_TV, value),
+                deviceType = DeviceType.GOOGLE_TV,
+                displayName = name,
+                launchValue = value,
+                source = AppTargetSource.CUSTOM,
+            ),
+        )
+        setCommandFeedback("Saved $name")
+    }
+
+    fun removePinnedApp(target: AppLaunchTarget) {
+        appPinStore.remove(target.id)
+        setCommandFeedback("Removed ${target.displayName}")
+    }
+
+    fun resetAppPins() {
+        appPinStore.resetDefaults()
+        setCommandFeedback("Reset app buttons")
+    }
+
+    fun launchPinnedApp(target: AppLaunchTarget) {
+        val device = uiState.value.selectedDevice
+        if (device?.type != target.deviceType) {
+            setCommandFeedback("Select ${target.deviceType.displayName()} first")
+            return
+        }
+        send(RemoteCommand.LaunchApp(target.launchValue))
+    }
+
+    fun startPairing(device: RegisteredDevice) {
+        if (uiState.value.isPairing) return
+        val isRepairing = uiState.value.pairedDeviceIds.contains(device.id)
+        viewModelScope.launch {
+            if (isRepairing) {
+                pairingManager.forgetPairing(device.id)
+            } else {
+                pairingManager.cancelPairing(device.id)
+            }
+            localState.update {
+                it.copy(
+                    isPairing = true,
+                    pairingSessionDeviceId = null,
+                    pairingPin = "",
+                    connectionStatus = ConnectionStatus.CHECKING,
+                    diagnosticMessage = if (isRepairing) "Re-pairing Google TV" else "Starting Google TV pairing",
+                )
+            }
+            pairingManager.startPairing(device)
+                .onSuccess {
+                    localState.update { state ->
+                        state.copy(pairingSessionDeviceId = device.id)
+                    }
+                    setStatus(ConnectionStatus.NOT_PAIRED)
+                    setDiagnostic("Enter the 6-character PIN shown on Google TV")
+                }
+                .onFailure {
+                    localState.update { state -> state.copy(pairingSessionDeviceId = null) }
+                    setStatus(ConnectionStatus.CONNECTION_FAILED)
+                    setDiagnostic("Pairing start failed: ${it.message}")
+                }
+            localState.update { it.copy(isPairing = false) }
+        }
+    }
+
+    fun finishPairing(device: RegisteredDevice) {
+        viewModelScope.launch {
+            val pin = uiState.value.pairingPin
+            localState.update {
+                it.copy(
+                    isPairing = true,
+                    connectionStatus = ConnectionStatus.CHECKING,
+                    diagnosticMessage = "Completing Google TV pairing",
+                )
+            }
+            pairingManager.finishPairing(device, pin)
+                .onSuccess {
+                    localState.update { state ->
+                        state.copy(pairingPin = "", pairingSessionDeviceId = null)
+                    }
+                    setStatus(ConnectionStatus.PAIRED)
+                    setDiagnostic("Google TV paired")
+                }
+                .onFailure { error ->
+                    localState.update { state ->
+                        state.copy(pairingSessionDeviceId = null)
+                    }
+                    setStatus(ConnectionStatus.CONNECTION_FAILED)
+                    setDiagnostic("Pairing failed: ${error.message}. Tap Start for a new code.")
+                }
+            localState.update { it.copy(isPairing = false) }
+        }
+    }
+
+    fun setHdmiMapping(device: RegisteredDevice, port: HdmiPort?) {
+        viewModelScope.launch {
+            registry.setHdmiMapping(device.id, port)
+            setCommandFeedback("Saved ${device.friendlyName} mapping")
+        }
+    }
+
+    fun switchTvInput(port: HdmiPort) {
+        val roku = uiState.value.rokuDevice ?: return setCommandFeedback("Add a Roku TV first")
+        viewModelScope.launch {
+            if (sendTo(roku, RemoteCommand.SetInput(port)).isSuccess) {
+                delay(500)
+                refreshRokuStatus(roku)
+            }
+        }
+    }
+
+    fun send(command: RemoteCommand) {
+        val device = uiState.value.selectedDevice ?: return setCommandFeedback("No selected device")
+        viewModelScope.launch {
+            if (sendTo(device, command).isSuccess) {
+                refreshStatus()
+            }
+        }
+    }
+
+    fun sendDpad(direction: DpadDirection) {
+        send(RemoteCommand.Dpad(direction))
+    }
+
+    fun sendVolume(command: VolumeCommand) {
+        send(RemoteCommand.Volume(command))
+    }
+
+    fun launchTypedTarget() {
+        val target = uiState.value.launchTarget.trim()
+        if (target.isBlank()) return setCommandFeedback("Enter an app id, package, or deep link")
+        send(RemoteCommand.LaunchApp(target))
+    }
+
+    fun refreshStatus() {
+        refreshStatusForDevice(uiState.value.selectedDeviceId)
+    }
+
+    private fun refreshStatusForDevice(deviceId: String?) {
+        val selected = uiState.value.devices.firstOrNull { it.id == deviceId } ?: uiState.value.selectedDevice
+        if (selected?.type != DeviceType.ROKU_TV) return
+        viewModelScope.launch { refreshRokuStatus(selected) }
+    }
+
+    fun watchGoogleTv() {
+        val state = uiState.value
+        val roku = state.rokuDevice ?: return setCommandFeedback("Add a Roku TV first")
+        val google = state.googleTvDevice ?: return setCommandFeedback("Add a Google TV first")
+        val port = google.hdmiPortMapping ?: return setCommandFeedback("Map the Google TV HDMI port first")
+        viewModelScope.launch {
+            if (sendTo(roku, RemoteCommand.SetInput(port), showFeedback = false).isFailure) {
+                setCommandFeedback("Failed to switch TV input")
+                return@launch
+            }
+            delay(800)
+            refreshRokuStatus(roku)
+            if (sendTo(google, RemoteCommand.Home, showFeedback = false).isFailure) {
+                setCommandFeedback("Failed to open Google TV")
+                return@launch
+            }
+            localState.update { it.copy(selectedDeviceId = google.id) }
+            setCommandFeedback("Switched to Google TV")
+        }
+    }
+
+    fun watchRoku() {
+        val roku = uiState.value.rokuDevice ?: return setCommandFeedback("Add a Roku TV first")
+        viewModelScope.launch {
+            if (sendTo(roku, RemoteCommand.Home, showFeedback = false).isFailure) {
+                setCommandFeedback("Failed to switch to Roku")
+                return@launch
+            }
+            localState.update { it.copy(selectedDeviceId = roku.id) }
+            setCommandFeedback("Switched to Roku")
+        }
+    }
+
+    fun addManualDevice(type: DeviceType, rawAddress: String, displayName: String) {
+        val defaultPort = if (type == DeviceType.ROKU_TV) ROKU_ECP_PORT else GOOGLE_TV_REMOTE_PORT
+        val endpoint = runCatching { ManualDeviceEndpoint.parse(rawAddress, defaultPort) }
+            .getOrElse { error ->
+                setStatus(ConnectionStatus.CONNECTION_FAILED)
+                setCommandFeedback(error.message ?: "Invalid address")
+                return
+            }
+        viewModelScope.launch {
+            when (type) {
+                DeviceType.ROKU_TV -> addManualRoku(endpoint, displayName)
+                DeviceType.GOOGLE_TV -> addManualGoogleTv(endpoint, displayName)
+            }
+        }
+    }
+
+    private suspend fun addManualRoku(endpoint: ManualDeviceEndpoint, displayName: String) {
+        val probeDevice = manualDevice(DeviceType.ROKU_TV, endpoint, displayName, uniqueId = "manual:${endpoint.host}:${endpoint.port}")
+        runCatching { rokuAdapter.queryDeviceInfo(probeDevice) }
+            .onSuccess { info ->
+                val uniqueId = info.serialNumber ?: probeDevice.uniqueId
+                val device = probeDevice.copy(
+                    id = "roku:${uniqueId.lowercase()}",
+                    uniqueId = uniqueId,
+                    friendlyName = displayName.trim().ifBlank {
+                        info.friendlyName ?: "Roku TV ${endpoint.host}"
+                    },
+                    isOnline = true,
+                    consecutiveFailures = 0
+                )
+                registry.upsertDiscoveredDevice(device)
+                updateRokuControlAvailability(device.id, info)
+                updateRokuPowerMode(device.id, info.powerMode)
+                localState.update {
+                    it.copy(
+                        selectedDeviceId = device.id,
+                        connectionStatus = ConnectionStatus.ONLINE,
+                        diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, activeAppName = null),
+                    )
+                }
+            }
+            .onFailure { error ->
+                setStatus(ConnectionStatus.CONNECTION_FAILED)
+                setDiagnostic("Manual Roku check failed: ${error.displayMessage()}")
+            }
+    }
+
+    private suspend fun addManualGoogleTv(endpoint: ManualDeviceEndpoint, displayName: String) {
+        val device = manualDevice(
+            type = DeviceType.GOOGLE_TV,
+            endpoint = endpoint,
+            displayName = displayName,
+            uniqueId = "manual:${endpoint.host}:${endpoint.port}"
+        ).copy(
+            id = "googletv:manual:${endpoint.host}:${endpoint.port}".lowercase(),
+            friendlyName = displayName.trim().ifBlank { "Google TV ${endpoint.host}" }
+        )
+        registry.upsertDiscoveredDevice(device)
+        localState.update {
+            it.copy(
+                selectedDeviceId = device.id,
+                connectionStatus = ConnectionStatus.NOT_PAIRED,
+                diagnosticMessage = "Added Google TV manually; pairing will verify the remote service",
+            )
+        }
+    }
+
+    private fun manualDevice(
+        type: DeviceType,
+        endpoint: ManualDeviceEndpoint,
+        displayName: String,
+        uniqueId: String
+    ): RegisteredDevice =
+        RegisteredDevice(
+            id = "${type.name.lowercase()}:$uniqueId",
+            type = type,
+            ipAddress = endpoint.host,
+            port = endpoint.port,
+            uniqueId = uniqueId,
+            friendlyName = displayName.trim().ifBlank {
+                if (type == DeviceType.ROKU_TV) "Roku TV ${endpoint.host}" else "Google TV ${endpoint.host}"
+            },
+            lastSeenMillis = System.currentTimeMillis(),
+            hdmiPortMapping = null,
+            isOnline = true,
+            consecutiveFailures = 0
+        )
+
+    private suspend fun sendTo(
+        device: RegisteredDevice,
+        command: RemoteCommand,
+        showFeedback: Boolean = true,
+    ): Result<Unit> {
+        val controls = uiState.value.rokuControlsByDeviceId[device.id] ?: RokuControlAvailability()
+        if (device.type == DeviceType.ROKU_TV && !controls.supports(command)) {
+            setStatus(ConnectionStatus.WAKE_UNAVAILABLE)
+            if (showFeedback) {
+                setCommandFeedback("${command.label()} is not supported by ${device.friendlyName}")
+            }
+            return Result.failure(UnsupportedOperationException("Roku device does not support ${command.label()}"))
+        }
+        val result = when (device.type) {
+            DeviceType.ROKU_TV -> rokuConnection.sendWithRecovery(device, command)
+            DeviceType.GOOGLE_TV -> googleTvAdapter.send(device, command)
+        }
+        return result
+            .onSuccess {
+                registry.markCommandSuccess(device)
+                if (device.type == DeviceType.ROKU_TV) {
+                    setStatus(ConnectionStatus.ONLINE)
+                }
+                if (showFeedback) {
+                    setCommandFeedback("Sent ${command.label()} to ${device.friendlyName}")
+                }
+            }
+            .onFailure {
+                registry.markCommandFailure(device)
+                if (command == RemoteCommand.PowerOn) {
+                    setStatus(ConnectionStatus.WAKE_UNAVAILABLE)
+                    if (showFeedback) {
+                        val powerMode = uiState.value.rokuPowerModeByDeviceId[device.id]
+                        val hint = RokuPowerMode.wakeHint(powerMode)
+                        setCommandFeedback(hint ?: "${device.friendlyName}: ${it.displayMessage()}")
+                    }
+                } else {
+                    setStatus(ConnectionStatus.CONNECTION_FAILED)
+                    if (showFeedback) {
+                        setCommandFeedback("${device.friendlyName}: ${it.displayMessage()}")
+                    }
+                }
+            }
+    }
+
+    private fun setStatus(status: ConnectionStatus) {
+        localState.update { it.copy(connectionStatus = status) }
+    }
+
+    private fun setDiagnostic(message: String?) {
+        localState.update { it.copy(diagnosticMessage = message) }
+    }
+
+    private fun setCommandFeedback(message: String?) {
+        feedbackClearJob?.cancel()
+        if (message == null) {
+            localState.update { it.copy(userFeedback = null, showFeedback = false) }
+            return
+        }
+        localState.update { it.copy(userFeedback = message, showFeedback = true) }
+        feedbackClearJob = viewModelScope.launch {
+            delay(3_000)
+            localState.update { state ->
+                if (state.userFeedback == message) {
+                    state.copy(userFeedback = null, showFeedback = false)
+                } else {
+                    state
+                }
+            }
+        }
+    }
+
+    private fun RemoteCommand.label(): String =
+        when (this) {
+            is RemoteCommand.Dpad -> direction.name.lowercase()
+            RemoteCommand.Select -> "select"
+            RemoteCommand.Home -> "home"
+            RemoteCommand.Back -> "back"
+            RemoteCommand.PlayPause -> "play"
+            is RemoteCommand.Volume -> command.name.lowercase()
+            RemoteCommand.PowerOn -> "wake/home"
+            RemoteCommand.PowerOff -> "power off"
+            RemoteCommand.PowerToggle -> "power"
+            is RemoteCommand.LaunchApp -> "launch"
+            is RemoteCommand.SetInput -> port.displayName
+        }
+
+    private fun DeviceType.displayName(): String =
+        when (this) {
+            DeviceType.ROKU_TV -> "Roku"
+            DeviceType.GOOGLE_TV -> "Google TV"
+        }
+
+    private suspend fun refreshRokuStatus(roku: RegisteredDevice) {
+        setStatus(ConnectionStatus.CHECKING)
+        setDiagnostic("Checking Roku ECP...")
+        rokuConnection.probeDeviceInfo(roku)
+            .onSuccess { info ->
+                val resolved = rokuConnection.resolveDevice(roku)
+                registry.markCommandSuccess(resolved)
+                updateRokuControlAvailability(resolved.id, info)
+                updateRokuPowerMode(resolved.id, info.powerMode)
+                setStatus(ConnectionStatus.ONLINE)
+                rokuConnection.queryActiveApp(resolved)
+                    .onSuccess { app ->
+                        localState.update {
+                            it.copy(
+                                activeApp = app,
+                                diagnosticMessage = rokuConnectedDiagnostic(
+                                    info.powerMode,
+                                    app?.name
+                                ),
+                            )
+                        }
+                    }
+                    .onFailure {
+                        setDiagnostic(
+                            rokuConnectedDiagnostic(info.powerMode, activeAppName = null)
+                        )
+                    }
+            }
+            .onFailure { error ->
+                registry.markCommandFailure(roku)
+                setStatus(ConnectionStatus.CONNECTION_FAILED)
+                setDiagnostic("Roku ECP check failed: ${error.displayMessage()}")
+            }
+    }
+
+    private fun updateRokuPowerMode(deviceId: String, raw: String?) {
+        if (raw.isNullOrBlank()) return
+        localState.update { state ->
+            state.copy(rokuPowerModeByDeviceId = state.rokuPowerModeByDeviceId + (deviceId to raw))
+        }
+    }
+
+    private fun rokuConnectedDiagnostic(powerMode: String?, activeAppName: String?): String {
+        val powerLabel = RokuPowerMode.displayLabel(powerMode)
+        return buildString {
+            if (powerLabel != null) append("TV $powerLabel")
+            if (activeAppName != null) {
+                if (isNotEmpty()) append(" · ")
+                append("Active: $activeAppName")
+            }
+            if (isEmpty()) append("Roku ECP connected")
+        }
+    }
+
+    private fun updateRokuControlAvailability(deviceId: String, info: RokuDeviceInfo) {
+        val availability = RokuControlAvailability(
+            supportsPowerOff = info.supportsTvPowerControl ?: info.isTv,
+            supportsVolume = info.supportsAudioVolumeControl ?: info.isTv,
+            supportsInputSwitching = info.isTv
+        )
+        localState.update { state ->
+            state.copy(rokuControlsByDeviceId = state.rokuControlsByDeviceId + (deviceId to availability))
+        }
+    }
+
+    private fun Throwable.displayMessage(): String =
+        when (this) {
+            is RokuNetworkAccessException -> message.orEmpty()
+            else -> message ?: "Unknown error"
+        }
+
+    companion object {
+        private const val ROKU_ECP_PORT = 8060
+        private const val GOOGLE_TV_REMOTE_PORT = 6466
+    }
+}

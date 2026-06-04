@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Roku ECP is a LAN-only plain HTTP API on port 8060. The TV IP is
+        discovered dynamically, so this app allows cleartext and keeps all
+        Google TV control on TLS in the GoogleTvAdapter. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
