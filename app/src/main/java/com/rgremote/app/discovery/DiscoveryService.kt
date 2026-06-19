@@ -26,7 +26,9 @@ class DiscoveryService(
                     discovered.copy(
                         id = identity.id,
                         friendlyName = info.friendlyName ?: discovered.friendlyName,
-                        uniqueId = identity.uniqueId
+                        uniqueId = identity.uniqueId,
+                        wifiMac = info.wifiMac,
+                        ethernetMac = info.ethernetMac
                     )
                 }.getOrDefault(discovered)
             } else {

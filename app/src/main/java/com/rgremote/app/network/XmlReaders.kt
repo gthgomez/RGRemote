@@ -22,7 +22,9 @@ object RokuXmlReaders {
             networkType = root.text("network-type"),
             isTv = root.booleanText("is-tv"),
             supportsTvPowerControl = root.booleanText("supports-tv-power-control"),
-            supportsAudioVolumeControl = root.booleanText("supports-audio-volume-control")
+            supportsAudioVolumeControl = root.booleanText("supports-audio-volume-control"),
+            wifiMac = root.text("wifi-mac"),
+            ethernetMac = root.text("ethernet-mac")
         )
     }
 

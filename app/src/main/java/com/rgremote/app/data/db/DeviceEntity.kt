@@ -15,7 +15,9 @@ data class DeviceEntity(
     val lastSeenMillis: Long,
     val hdmiPortMapping: String?,
     val isOnline: Boolean,
-    val consecutiveFailures: Int
+    val consecutiveFailures: Int,
+    val wifiMac: String? = null,
+    val ethernetMac: String? = null
 )
 
 @Entity(tableName = "pairing_credentials")

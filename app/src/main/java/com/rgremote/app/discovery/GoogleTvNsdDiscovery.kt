@@ -56,8 +56,10 @@ class GoogleTvNsdDiscovery(
         discoveryGeneration += 1
         listener?.let { runCatching { nsdManager.stopServiceDiscovery(it) } }
         listener = null
-        resolveQueue.clear()
-        isResolvingService = false
+        synchronized(resolveQueue) {
+            resolveQueue.clear()
+            isResolvingService = false
+        }
     }
 
     private fun queueResolve(
@@ -67,8 +69,15 @@ class GoogleTvNsdDiscovery(
         onError: (String) -> Unit
     ) {
         if (generation != discoveryGeneration) return
-        resolveQueue.addLast(serviceInfo)
-        if (!isResolvingService) {
+        var startResolve = false
+        synchronized(resolveQueue) {
+            resolveQueue.addLast(serviceInfo)
+            if (!isResolvingService) {
+                isResolvingService = true
+                startResolve = true
+            }
+        }
+        if (startResolve) {
             resolveNextQueuedService(generation, onDevice, onError)
         }
     }
@@ -79,8 +88,14 @@ class GoogleTvNsdDiscovery(
         onError: (String) -> Unit
     ) {
         if (generation != discoveryGeneration) return
-        val next = if (resolveQueue.isNotEmpty()) resolveQueue.removeFirst() else return
-        isResolvingService = true
+        val next = synchronized(resolveQueue) {
+            if (resolveQueue.isNotEmpty()) {
+                resolveQueue.removeFirst()
+            } else {
+                isResolvingService = false
+                null
+            }
+        } ?: return
 
         nsdManager.resolveService(
             next,
@@ -125,7 +140,9 @@ class GoogleTvNsdDiscovery(
         onError: (String) -> Unit
     ) {
         if (generation != discoveryGeneration) return
-        isResolvingService = false
+        synchronized(resolveQueue) {
+            isResolvingService = false
+        }
         resolveNextQueuedService(generation, onDevice, onError)
     }
 

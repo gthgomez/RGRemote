@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
                     RGRemoteViewModel(
+                        context = applicationContext,
                         registry = registry,
                         discoveryService = discoveryService,
                         rokuAdapter = rokuClient,

@@ -88,9 +88,6 @@ internal fun RemoteSurface(
     rokuControls: RokuControlAvailability,
     showWatchGoogleTv: Boolean,
     showWatchRoku: Boolean,
-    onScan: () -> Unit,
-    onRefreshStatus: () -> Unit,
-    onOpenSetupGuide: () -> Unit,
     onSelect: (String) -> Unit,
     onGoogleSelect: (com.rgremote.app.domain.RegisteredDevice) -> Unit,
     onWatchGoogleTv: () -> Unit,
@@ -100,14 +97,9 @@ internal fun RemoteSurface(
     onVolume: (VolumeCommand) -> Unit,
 ) {
     val selected = state.selectedDevice
-    var menuExpanded by remember { mutableStateOf(false) }
-    val powerOffLabel = if (ecosystem.type == DeviceType.ROKU_TV) "Power off" else "Power"
-    val wakeLabel = if (ecosystem.type == DeviceType.ROKU_TV) "Wake" else "Power"
     val rokuPowerMode = if (ecosystem.type == DeviceType.ROKU_TV) state.selectedRokuPowerMode else null
     val powerOffEnabled = enabled && (ecosystem.type != DeviceType.ROKU_TV || rokuControls.supportsPowerOff != false)
     val volumeEnabled = enabled && (ecosystem.type != DeviceType.ROKU_TV || rokuControls.supportsVolume != false)
-    val wakeEnabled = enabled &&
-        (ecosystem.type != DeviceType.ROKU_TV || RokuPowerMode.isLikelyReachable(rokuPowerMode))
     val wakeHint = if (ecosystem.type == DeviceType.ROKU_TV) RokuPowerMode.wakeHint(rokuPowerMode) else null
     val heroGlow = if (ecosystem.type == DeviceType.ROKU_TV) 0.42f else 0.28f
 
@@ -142,110 +134,42 @@ internal fun RemoteSurface(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(statusColor(state.connectionStatus, accent))
-                            )
-                            Text(
-                                text = selected?.friendlyName ?: "No device",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (ecosystem.type == DeviceType.ROKU_TV) {
-                            Text(
-                                text = rokuConnectionStatusLabel(state),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = statusColor(state.connectionStatus, accent),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RoundIconButton(Icons.Default.Home, "Home", accentSoft, enabled) {
-                            onCommand(RemoteCommand.Home)
-                        }
-                        RoundIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", accentSoft, enabled) {
-                            onCommand(RemoteCommand.Back)
-                        }
-                        val powerCommand = if (ecosystem.type == DeviceType.ROKU_TV) {
-                            RemoteCommand.PowerOff
-                        } else {
-                            RemoteCommand.PowerToggle
-                        }
-                        RoundIconButton(
-                            Icons.Default.PowerSettingsNew,
-                            powerOffLabel,
-                            DangerRed,
-                            powerOffEnabled,
-                        ) {
-                            onCommand(powerCommand)
-                        }
-                        Box {
-                            RoundIconButton(
-                                icon = Icons.Default.MoreVert,
-                                label = "More actions",
-                                accent = accent,
-                                enabled = true,
-                                onClick = { menuExpanded = true }
-                            )
-                            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(if (state.isScanning) "Scanning..." else "Scan devices") },
-                                    onClick = {
-                                        menuExpanded = false
-                                        if (!state.isScanning) onScan()
-                                    },
-                                    enabled = !state.isScanning,
-                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Refresh status") },
-                                    onClick = {
-                                        menuExpanded = false
-                                        onRefreshStatus()
-                                    },
-                                    enabled = selected?.type == DeviceType.ROKU_TV,
-                                    leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Connection guide") },
-                                    onClick = {
-                                        menuExpanded = false
-                                        onOpenSetupGuide()
-                                    },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null) }
-                                )
-                            }
-                        }
-                    }
-                }
-
                 EcosystemSegmentBar(
                     state = state,
                     selected = selected,
                     onSelect = onSelect,
                     onGoogleSelect = onGoogleSelect
                 )
+
+                val isStandby = rokuPowerMode?.equals("standby", ignoreCase = true) == true ||
+                        state.connectionStatus == ConnectionStatus.OFFLINE
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RoundIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", accentSoft, enabled) {
+                        onCommand(RemoteCommand.Back)
+                    }
+                    RoundIconButton(Icons.Default.Home, "Home", accentSoft, enabled) {
+                        onCommand(RemoteCommand.Home)
+                    }
+                    val powerCommand = if (ecosystem.type == DeviceType.ROKU_TV) {
+                        if (isStandby) RemoteCommand.PowerOn else RemoteCommand.PowerOff
+                    } else {
+                        RemoteCommand.PowerToggle
+                    }
+                    val powerColor = if (ecosystem.type == DeviceType.ROKU_TV && isStandby) SuccessGreen else DangerRed
+                    RoundIconButton(
+                        icon = Icons.Default.PowerSettingsNew,
+                        label = if (isStandby) "Wake" else "Power",
+                        accent = powerColor,
+                        enabled = powerOffEnabled
+                    ) {
+                        onCommand(powerCommand)
+                    }
+                }
 
                 BoxWithConstraints(
                     modifier = Modifier
@@ -290,19 +214,10 @@ internal fun RemoteSurface(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TransportButton(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.PowerSettingsNew,
-                        label = wakeLabel,
-                        accent = SuccessGreen,
-                        enabled = wakeEnabled,
-                        emphasized = true
-                    ) {
-                        onCommand(RemoteCommand.PowerOn)
-                    }
                     TransportButton(
                         modifier = Modifier.weight(1f),
                         icon = Icons.Default.PlayArrow,
@@ -324,14 +239,15 @@ internal fun RemoteSurface(
                         onVolume(VolumeCommand.MUTE)
                     }
                 }
-                if (wakeHint != null && ecosystem.type == DeviceType.ROKU_TV) {
+
+                if (wakeHint != null && isStandby && ecosystem.type == DeviceType.ROKU_TV) {
                     Text(
                         text = wakeHint,
                         style = MaterialTheme.typography.labelSmall,
                         color = SecondaryText,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     )
                 }
 

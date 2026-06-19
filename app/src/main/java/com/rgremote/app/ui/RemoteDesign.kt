@@ -314,7 +314,7 @@ internal fun Modifier.cyberEtch(accent: Color, alpha: Float = 0.24f): Modifier =
 /** Faint PCB-style grid behind the whole screen (reference mockup). */
 internal fun Modifier.circuitBoardBackground(accent: Color = PurpleGlow): Modifier =
     drawBehind {
-        val line = accent.copy(alpha = 0.06f)
+        val line = accent.copy(alpha = 0.04f)
         val dot = accent.copy(alpha = 0.10f)
         val step = 28.dp.toPx()
         var x = 0f

@@ -4,10 +4,23 @@ package com.rgremote.app.domain
  * Picks one saved row per [DeviceType] for UI and control.
  * Duplicate rows usually come from discovery assigning a new id after serial enrichment.
  */
-fun List<RegisteredDevice>.canonicalDevicesPerType(): List<RegisteredDevice> =
-    DeviceType.entries.mapNotNull { type ->
-        filter { it.type == type }.maxWithOrNull(devicePreferenceComparator())
+fun List<RegisteredDevice>.canonicalDevicesPerType(): List<RegisteredDevice> {
+    val groups = groupBy { device ->
+        if (device.uniqueId.startsWith("manual:")) {
+            "ip:${device.ipAddress}"
+        } else {
+            "serial:${device.uniqueId.lowercase()}"
+        }
     }
+    val comparator = compareBy<RegisteredDevice> { !it.uniqueId.startsWith("manual:") }
+        .thenBy { it.hdmiPortMapping != null }
+        .thenBy { it.isOnline }
+        .thenBy { it.consecutiveFailures == 0 }
+        .thenBy { it.lastSeenMillis }
+    return groups.map { (_, groupDevices) ->
+        groupDevices.maxWithOrNull(comparator) ?: groupDevices.first()
+    }
+}
 
 fun List<RegisteredDevice>.duplicateDeviceCount(): Int =
     (size - canonicalDevicesPerType().size).coerceAtLeast(0)

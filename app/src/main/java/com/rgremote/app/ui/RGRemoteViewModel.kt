@@ -1,5 +1,6 @@
 package com.rgremote.app.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rgremote.app.data.apps.AppPinStore
@@ -32,6 +33,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -115,6 +118,7 @@ data class RGRemoteUiState(
 }
 
 class RGRemoteViewModel(
+    private val context: Context,
     private val registry: DeviceRegistry,
     private val discoveryService: DiscoveryService,
     private val rokuAdapter: RokuEcpClient,
@@ -158,7 +162,14 @@ class RGRemoteViewModel(
                 showConnectionGuide = showGuide,
                 showUtilitiesDock = showUtilities,
             )
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RGRemoteUiState())
+        }
+        .onStart {
+            startForegroundPolling()
+        }
+        .onCompletion {
+            stopForegroundPolling()
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RGRemoteUiState())
 
     init {
         viewModelScope.launch { registry.dedupeStoredDevices() }
@@ -200,9 +211,77 @@ class RGRemoteViewModel(
         discoveryService.stopGoogleTvDiscovery()
     }
 
+    private var pollingJob: Job? = null
+    private val ssdpListener = com.rgremote.app.discovery.RokuSsdpListener(context) { device ->
+        viewModelScope.launch {
+            registry.upsertDiscoveredDevice(device)
+        }
+    }
+
+    private fun startForegroundPolling() {
+        pollingJob?.cancel()
+        ssdpListener.start(viewModelScope)
+        pollingJob = viewModelScope.launch {
+            while (true) {
+                delay(5000)
+                val state = uiState.value
+                val selected = state.selectedDevice
+                if (selected != null && selected.type == DeviceType.ROKU_TV) {
+                    if (!state.isScanning && !state.isLoadingApps && state.connectionStatus != ConnectionStatus.CHECKING) {
+                        pollRokuStatus(selected)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun stopForegroundPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
+        ssdpListener.stop()
+    }
+
+    private suspend fun pollRokuStatus(device: RegisteredDevice) {
+        rokuConnection.probeDeviceInfo(device)
+            .onSuccess { info ->
+                val resolved = rokuConnection.resolveDevice(device)
+                registry.markCommandSuccess(resolved)
+                updateRokuControlAvailability(resolved.id, info)
+                updateRokuPowerMode(resolved.id, info.powerMode)
+                rokuConnection.queryActiveApp(resolved)
+                    .onSuccess { app ->
+                        localState.update {
+                            it.copy(
+                                activeApp = app,
+                                connectionStatus = ConnectionStatus.ONLINE,
+                                diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, app?.name)
+                            )
+                        }
+                    }
+                    .onFailure {
+                        localState.update {
+                            it.copy(
+                                connectionStatus = ConnectionStatus.ONLINE,
+                                diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, activeAppName = null)
+                            )
+                        }
+                    }
+            }
+            .onFailure {
+                registry.markCommandFailure(device)
+                localState.update {
+                    it.copy(
+                        connectionStatus = ConnectionStatus.OFFLINE,
+                        diagnosticMessage = "Roku ECP connection offline"
+                    )
+                }
+            }
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopDiscovery()
+        stopForegroundPolling()
     }
 
     fun selectDevice(deviceId: String) {

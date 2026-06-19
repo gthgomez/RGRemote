@@ -2,10 +2,13 @@ package com.rgremote.app.google
 
 import java.io.ByteArrayOutputStream
 import java.io.EOFException
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
 object ProtoWire {
+    private const val MAX_FRAME_SIZE_BYTES = 65_536 // 64KB limit
+
     data class Field(
         val number: Int,
         val wireType: Int,
@@ -21,6 +24,9 @@ object ProtoWire {
 
     fun readFrame(input: InputStream): ByteArray {
         val size = readVarint(input).toInt()
+        if (size < 0 || size > MAX_FRAME_SIZE_BYTES) {
+            throw IOException("ProtoWire frame size limit exceeded: $size bytes")
+        }
         val bytes = ByteArray(size)
         var offset = 0
         while (offset < size) {

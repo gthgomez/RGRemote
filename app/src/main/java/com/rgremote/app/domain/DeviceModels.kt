@@ -59,7 +59,9 @@ data class RegisteredDevice(
     val lastSeenMillis: Long,
     val hdmiPortMapping: HdmiPort?,
     val isOnline: Boolean,
-    val consecutiveFailures: Int
+    val consecutiveFailures: Int,
+    val wifiMac: String? = null,
+    val ethernetMac: String? = null
 )
 
 data class RokuApp(
@@ -77,7 +79,9 @@ data class RokuDeviceInfo(
     val networkType: String? = null,
     val isTv: Boolean? = null,
     val supportsTvPowerControl: Boolean? = null,
-    val supportsAudioVolumeControl: Boolean? = null
+    val supportsAudioVolumeControl: Boolean? = null,
+    val wifiMac: String? = null,
+    val ethernetMac: String? = null
 )
 
 data class ActiveApp(

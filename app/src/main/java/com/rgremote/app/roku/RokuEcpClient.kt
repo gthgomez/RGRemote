@@ -10,7 +10,10 @@ import com.rgremote.app.domain.RokuDeviceInfo
 import com.rgremote.app.domain.VolumeCommand
 import com.rgremote.app.network.RokuXmlReaders
 import java.io.IOException
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.HttpURLConnection
+import java.net.InetAddress
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -35,13 +38,43 @@ class RokuEcpClient(
                 RemoteCommand.Back -> post(device, "keypress/Back")
                 RemoteCommand.PlayPause -> post(device, "keypress/Play")
                 is RemoteCommand.Volume -> post(device, "keypress/${command.command.rokuKey()}")
-                RemoteCommand.PowerOn -> post(device, "keypress/Home", wakeTimeoutMillis)
+                RemoteCommand.PowerOn -> {
+                    device.wifiMac?.let { sendWakeOnLan(it) }
+                    device.ethernetMac?.let { sendWakeOnLan(it) }
+                    post(device, "keypress/Home", wakeTimeoutMillis)
+                }
                 RemoteCommand.PowerOff -> post(device, "keypress/PowerOff")
                 RemoteCommand.PowerToggle -> throw IOException("Roku ECP does not provide a reliable power toggle; use Power Off or Wake/Home")
                 is RemoteCommand.LaunchApp -> post(device, RokuLaunchTarget.parse(command.appIdOrUri).path)
                 is RemoteCommand.SetInput -> post(device, "keypress/${command.port.rokuKey}")
             }
         }
+
+    private fun sendWakeOnLan(macAddress: String) {
+        val cleanMac = macAddress.replace(":", "").replace("-", "")
+        if (cleanMac.length != 12) return
+        val macBytes = ByteArray(6)
+        for (i in 0 until 6) {
+            macBytes[i] = cleanMac.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        }
+        val payload = ByteArray(6 + 16 * 6)
+        for (i in 0 until 6) {
+            payload[i] = 0xFF.toByte()
+        }
+        for (i in 0 until 16) {
+            System.arraycopy(macBytes, 0, payload, 6 + i * 6, 6)
+        }
+        try {
+            val address = InetAddress.getByName("255.255.255.255")
+            DatagramSocket().use { socket ->
+                socket.broadcast = true
+                socket.send(DatagramPacket(payload, payload.size, address, 9))
+                socket.send(DatagramPacket(payload, payload.size, address, 7))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     override suspend fun queryDeviceInfo(device: RegisteredDevice): RokuDeviceInfo =
         RokuXmlReaders.deviceInfo(get(device, "query/device-info"))

@@ -150,6 +150,7 @@ internal fun ActiveDeviceHeader(
                         accent = ecosystem.accent,
                         size = if (compact) 34.dp else 42.dp
                     )
+                    var deviceMenuExpanded by remember { mutableStateOf(false) }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                         if (!compact) {
                             Row(verticalAlignment = Alignment.Bottom) {
@@ -167,14 +168,57 @@ internal fun ActiveDeviceHeader(
                                 )
                             }
                         }
-                        Text(
-                            text = selected?.friendlyName ?: "No device",
-                            style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = PrimaryText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { deviceMenuExpanded = true }
+                                .padding(vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = selected?.friendlyName ?: "No device",
+                                style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryText,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Switch device",
+                                tint = PrimaryText.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            DropdownMenu(
+                                expanded = deviceMenuExpanded,
+                                onDismissRequest = { deviceMenuExpanded = false }
+                            ) {
+                                state.devices.forEach { device ->
+                                    DropdownMenuItem(
+                                        text = { Text(device.friendlyName) },
+                                        onClick = {
+                                            deviceMenuExpanded = false
+                                            onSelect(device.id)
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (device.type == DeviceType.ROKU_TV) Icons.Default.Tv else Icons.Default.SmartDisplay,
+                                                contentDescription = null,
+                                                tint = if (device.id == selected?.id) accent else SecondaryText
+                                            )
+                                        }
+                                    )
+                                }
+                                if (state.devices.isEmpty()) {
+                                    DropdownMenuItem(
+                                        text = { Text("No devices found") },
+                                        onClick = { deviceMenuExpanded = false },
+                                        enabled = false
+                                    )
+                                }
+                            }
+                        }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -350,10 +394,14 @@ internal fun EcosystemSegmentBar(
             EcosystemSegment(
                 modifier = Modifier.weight(1f),
                 label = "Roku",
-                selected = selected?.id == device.id,
+                selected = selected?.type == DeviceType.ROKU_TV,
                 accent = RokuPrimary,
                 enabled = true,
-                onClick = { onSelect(device.id) }
+                onClick = {
+                    if (selected?.type != DeviceType.ROKU_TV) {
+                        onSelect(device.id)
+                    }
+                }
             )
         }
         google?.let { device ->
@@ -361,11 +409,15 @@ internal fun EcosystemSegmentBar(
             EcosystemSegment(
                 modifier = Modifier.weight(1f),
                 label = "Google TV",
-                selected = selected?.id == device.id,
+                selected = selected?.type == DeviceType.GOOGLE_TV,
                 accent = GooglePrimary,
                 enabled = true,
-                showAttentionDot = needsAttention && selected?.id != device.id,
-                onClick = { onGoogleSelect(device) }
+                showAttentionDot = needsAttention && selected?.type != DeviceType.GOOGLE_TV,
+                onClick = {
+                    if (selected?.type != DeviceType.GOOGLE_TV) {
+                        onGoogleSelect(device)
+                    }
+                }
             )
         }
     }

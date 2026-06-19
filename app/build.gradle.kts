@@ -73,9 +73,6 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    implementation(libs.bouncycastle.prov)
-    implementation(libs.bouncycastle.pkix)
-
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 

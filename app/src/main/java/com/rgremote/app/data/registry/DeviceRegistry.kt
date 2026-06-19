@@ -43,32 +43,51 @@ class DeviceRegistry(private val dao: DeviceDao) {
         dedupeStoredDevices()
     }
 
-    /** Removes duplicate rows (same TV, different ids after scan/reinstall). */
+    /** Removes duplicate rows (same physical TV, different ids after scan/reinstall). */
     suspend fun dedupeStoredDevices() {
         val all = dao.listDevices().map { it.toDomain() }
         if (all.isEmpty()) return
-        val keep = all.canonicalDevicesPerType()
-        val keepIds = keep.map { it.id }.toSet()
-        keep.forEach { canonical ->
-            val duplicates = all.filter { stale ->
-                stale.id != canonical.id &&
-                    stale.type == canonical.type &&
-                    (stale.sameEndpointAs(canonical) || stale.ipAddress.equals(canonical.ipAddress, ignoreCase = true))
+
+        // Group by physical device identity: real serial number if available, otherwise fallback to IP
+        val groups = all.groupBy { device ->
+            if (device.uniqueId.startsWith("manual:")) {
+                "ip:${device.ipAddress}"
+            } else {
+                "serial:${device.uniqueId.lowercase()}"
             }
-            if (duplicates.isEmpty()) return@forEach
-            val merged = duplicates.fold(canonical) { acc, dup ->
-                acc.copy(
-                    hdmiPortMapping = acc.hdmiPortMapping ?: dup.hdmiPortMapping,
-                    friendlyName = if (acc.friendlyName.length >= dup.friendlyName.length) acc.friendlyName else dup.friendlyName,
-                    lastSeenMillis = maxOf(acc.lastSeenMillis, dup.lastSeenMillis),
-                )
-            }
-            dao.upsertDevice(merged.toEntity())
         }
-        all.filter { it.id !in keepIds }.forEach { stale ->
-            migratePairingCredentialIfNeeded(stale, keep)
-            dao.deletePairingCredential(stale.id)
-            dao.deleteDevice(stale.id)
+
+        groups.forEach { (_, groupDevices) ->
+            if (groupDevices.isEmpty()) return@forEach
+
+            // Pick the best representative to keep (prefer real serial over manual entry)
+            val canonical = groupDevices.maxWithOrNull(
+                compareBy<RegisteredDevice> { !it.uniqueId.startsWith("manual:") }
+                    .thenBy { it.hdmiPortMapping != null }
+                    .thenBy { it.isOnline }
+                    .thenBy { it.consecutiveFailures == 0 }
+                    .thenBy { it.lastSeenMillis }
+            ) ?: groupDevices.first()
+
+            val duplicates = groupDevices.filter { it.id != canonical.id }
+            if (duplicates.isNotEmpty()) {
+                val merged = duplicates.fold(canonical) { acc, dup ->
+                    acc.copy(
+                        hdmiPortMapping = acc.hdmiPortMapping ?: dup.hdmiPortMapping,
+                        friendlyName = if (acc.friendlyName.length >= dup.friendlyName.length) acc.friendlyName else dup.friendlyName,
+                        lastSeenMillis = maxOf(acc.lastSeenMillis, dup.lastSeenMillis),
+                        wifiMac = acc.wifiMac ?: dup.wifiMac,
+                        ethernetMac = acc.ethernetMac ?: dup.ethernetMac
+                    )
+                }
+                dao.upsertDevice(merged.toEntity())
+
+                duplicates.forEach { stale ->
+                    migratePairingCredentialIfNeeded(stale, listOf(canonical))
+                    dao.deletePairingCredential(stale.id)
+                    dao.deleteDevice(stale.id)
+                }
+            }
         }
     }
 
@@ -117,7 +136,9 @@ private fun DeviceEntity.toDomain(): RegisteredDevice =
         lastSeenMillis = lastSeenMillis,
         hdmiPortMapping = HdmiPort.fromName(hdmiPortMapping),
         isOnline = isOnline,
-        consecutiveFailures = consecutiveFailures
+        consecutiveFailures = consecutiveFailures,
+        wifiMac = wifiMac,
+        ethernetMac = ethernetMac
     )
 
 private fun RegisteredDevice.toEntity(): DeviceEntity =
@@ -132,5 +153,7 @@ private fun RegisteredDevice.toEntity(): DeviceEntity =
         lastSeenMillis = lastSeenMillis,
         hdmiPortMapping = hdmiPortMapping?.name,
         isOnline = isOnline,
-        consecutiveFailures = consecutiveFailures
+        consecutiveFailures = consecutiveFailures,
+        wifiMac = wifiMac,
+        ethernetMac = ethernetMac
     )

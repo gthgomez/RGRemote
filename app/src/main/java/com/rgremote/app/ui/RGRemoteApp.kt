@@ -235,7 +235,20 @@ private fun RGRemoteScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(horizontal = horizontalPadding, vertical = verticalPadding),
+                verticalArrangement = Arrangement.spacedBy(sectionSpacing)
             ) {
+                ActiveDeviceHeader(
+                    state = state,
+                    ecosystem = ecosystem,
+                    accent = accent,
+                    onScan = onScan,
+                    onRefreshStatus = onRefreshStatus,
+                    onOpenSetupGuide = { showSetupGuideDialog = true },
+                    onSelect = onSelect,
+                    onGoogleSelect = { onSelectGoogleDevice(it.id) },
+                    compact = true
+                )
+
                 Crossfade(
                     modifier = Modifier.weight(1f),
                     targetState = state.selectedTab,
@@ -286,11 +299,6 @@ private fun RGRemoteScreen(
                                 .verticalScroll(tabScroll),
                             verticalArrangement = Arrangement.spacedBy(sectionSpacing)
                         ) {
-                            ActiveTvSubtitle(
-                                state = state,
-                                accent = accent,
-                                onOpenRemote = { onSelectTab(RemoteTab.REMOTE) }
-                            )
                             AppsPanel(
                                 state = state,
                                 ecosystem = ecosystem,
@@ -316,11 +324,6 @@ private fun RGRemoteScreen(
                                 .verticalScroll(tabScroll),
                             verticalArrangement = Arrangement.spacedBy(sectionSpacing)
                         ) {
-                            ActiveTvSubtitle(
-                                state = state,
-                                accent = accent,
-                                onOpenRemote = { onSelectTab(RemoteTab.REMOTE) }
-                            )
                             SettingsPanel(
                                 state = state,
                                 ecosystem = ecosystem,
