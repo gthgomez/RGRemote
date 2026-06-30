@@ -64,43 +64,47 @@ class DiscoveryCoordinator(
             updateState(withStatus(ConnectionStatus.CHECKING))
             updateState(withDiagnostic("Scanning LAN for Roku devices"))
             updateState { it.copy(isScanning = true) }
-            val count = runCatching { discoveryService.scanRoku() }
-                .onFailure { error ->
-                    updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
-                    updateState(withDiagnostic("Roku scan failed: ${error.displayMessage()}"))
+            val scanResult = runCatching { discoveryService.scanRoku() }
+            val failed = scanResult.isFailure
+            scanResult.onFailure { error ->
+                updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
+                updateState(withDiagnostic("Roku scan failed: ${error.displayMessage()}"))
+            }
+            val count = scanResult.getOrDefault(0)
+            if (!failed) {
+                val discoveredRoku = if (count > 0) {
+                    registry.devices.first().firstOrNull { it.type == DeviceType.ROKU_TV }
+                } else {
+                    null
                 }
-                .getOrDefault(0)
-            
-            val discoveredRoku = if (count > 0) {
-                registry.devices.first().firstOrNull { it.type == DeviceType.ROKU_TV }
+                updateState {
+                    it.copy(
+                        isScanning = false,
+                        selectedDeviceId = it.selectedDeviceId ?: discoveredRoku?.id,
+                        connectionStatus = when {
+                            count == 0 -> ConnectionStatus.OFFLINE
+                            discoveredRoku != null -> ConnectionStatus.CHECKING
+                            else -> ConnectionStatus.OFFLINE
+                        },
+                        diagnosticMessage = when {
+                            count == 0 -> "No Roku SSDP replies received"
+                            discoveredRoku != null -> "Verifying Roku ECP on saved device..."
+                            else -> "Found $count Roku device(s) but none matched saved TV"
+                        },
+                    )
+                }
+                runCatching { registry.dedupeStoredDevices() }
+                discoveredRoku?.let { onRokuDiscovered(it) }
             } else {
-                null
+                updateState { it.copy(isScanning = false) }
             }
-            
-            updateState {
-                it.copy(
-                    isScanning = false,
-                    selectedDeviceId = it.selectedDeviceId ?: discoveredRoku?.id,
-                    connectionStatus = when {
-                        count == 0 -> ConnectionStatus.OFFLINE
-                        discoveredRoku != null -> ConnectionStatus.CHECKING
-                        else -> ConnectionStatus.OFFLINE
-                    },
-                    diagnosticMessage = when {
-                        count == 0 -> "No Roku SSDP replies received"
-                        discoveredRoku != null -> "Verifying Roku ECP on saved device..."
-                        else -> "Found $count Roku device(s) but none matched saved TV"
-                    },
-                )
-            }
-            runCatching { registry.dedupeStoredDevices() }
-            discoveredRoku?.let { onRokuDiscovered(it) }
         }
     }
 
     fun startGoogleDiscovery() {
         runCatching {
             discoveryService.startGoogleTvDiscovery { error ->
+                updateState { it.copy(googleDiscoveryRunning = false) }
                 updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
                 updateState(withDiagnostic(error))
             }

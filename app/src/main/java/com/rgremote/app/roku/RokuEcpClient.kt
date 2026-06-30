@@ -120,10 +120,12 @@ class RokuEcpClient(
                 // Consuming the input stream returns the connection to the keep-alive pool.
                 try {
                     connection.inputStream.use { it.readBytes() }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    // Drain error stream as best-effort, then propagate the failure.
                     try {
                         connection.errorStream?.use { it.readBytes() }
                     } catch (_: Exception) {}
+                    throw IOException("Roku POST /$path: failed to read response body", e)
                 }
             }
         }
@@ -172,8 +174,17 @@ private fun VolumeCommand.rokuKey(): String =
         VolumeCommand.MUTE -> "VolumeMute"
     }
 
-// Do NOT call disconnect() here. Returning without disconnect() lets the JVM
+// Do NOT call disconnect() on success. Returning without disconnect() lets the JVM
 // keep the socket alive in HttpURLConnection's internal connection pool, enabling
 // HTTP Keep-Alive reuse across rapid ECP button presses. Each caller already
 // closes its response stream (inputStream / outputStream) via stdlib `.use {}`.
-private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R = block(this)
+//
+// If [block] throws, disconnect() IS called to prevent a stale/undrained connection
+// from being returned to the pool.
+private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R =
+    try {
+        block(this)
+    } catch (e: Exception) {
+        disconnect()
+        throw e
+    }

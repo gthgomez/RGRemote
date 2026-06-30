@@ -530,7 +530,7 @@ class RGRemoteViewModel(
 
     private suspend fun addManualRoku(endpoint: ManualDeviceEndpoint, displayName: String) {
         val probeDevice = manualDevice(DeviceType.ROKU_TV, endpoint, displayName, uniqueId = "manual:${endpoint.host}:${endpoint.port}")
-        runCatching { rokuAdapter.queryDeviceInfo(probeDevice) }
+        rokuConnection.probeDeviceInfo(probeDevice)
             .onSuccess { info ->
                 val uniqueId = info.serialNumber ?: probeDevice.uniqueId
                 val device = probeDevice.copy(
@@ -543,6 +543,7 @@ class RGRemoteViewModel(
                     consecutiveFailures = 0
                 )
                 registry.upsertDiscoveredDevice(device)
+                discoveryCoordinator.requestDedupe()
                 rokuStatusPoller.pollRokuStatus(device)
             }
             .onFailure { error ->
@@ -562,6 +563,7 @@ class RGRemoteViewModel(
             friendlyName = displayName.trim().ifBlank { "Google TV ${endpoint.host}" }
         )
         registry.upsertDiscoveredDevice(device)
+        discoveryCoordinator.requestDedupe()
         localState.update {
             it.copy(
                 selectedDeviceId = device.id,

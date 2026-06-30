@@ -85,17 +85,22 @@ class GoogleTvAdapter(
         // No usable cached session — open a fresh persistent TLS connection.
         val sslContext = keyStore.pairedSslContext(keyAlias, serverPin)
         val socket = sslContext.socketFactory.createSocket() as SSLSocket
-        socket.soTimeout = READ_TIMEOUT_MILLIS
-        socket.connect(
-            java.net.InetSocketAddress(device.ipAddress, device.port),
-            CONNECT_TIMEOUT_MILLIS
-        )
-        socket.startHandshake()
-        val session = RemoteV2Session(socket)
-        val fresh = CachedSession(device.id, socket, session)
-        cachedSession = fresh
-        session.send(command)   // also performs Remote v2 negotiation on first use
-        fresh.touch()
+        try {
+            socket.soTimeout = READ_TIMEOUT_MILLIS
+            socket.connect(
+                java.net.InetSocketAddress(device.ipAddress, device.port),
+                CONNECT_TIMEOUT_MILLIS
+            )
+            socket.startHandshake()
+            val session = RemoteV2Session(socket)
+            val fresh = CachedSession(device.id, socket, session)
+            session.send(command)   // negotiate + send; only cache on success
+            fresh.touch()
+            cachedSession = fresh
+        } catch (e: IOException) {
+            runCatching { socket.close() }
+            throw e
+        }
     }
 
     /**
@@ -105,20 +110,29 @@ class GoogleTvAdapter(
      * pass null to unconditionally invalidate any cached session.
      */
     override fun invalidateSession(deviceId: String?) {
+        // Capture the session that was current at invocation time to prevent
+        // closing a session created after this call (e.g., by a racing send()).
+        val target = cachedSession ?: return
+        if (deviceId != null && target.deviceId != deviceId) return
         adapterScope.launch {
             sessionMutex.withLock {
-                val session = cachedSession ?: return@launch
-                if (deviceId == null || session.deviceId == deviceId) {
+                // Re-check under the mutex: only close if the reference
+                // hasn't been replaced between our snapshot and now.
+                if (cachedSession === target) {
                     cachedSession = null
-                    session.closeQuietly()
+                    target.closeQuietly()
                 }
             }
         }
     }
 
     override fun shutdown() {
-        invalidateSession(null)
         adapterScope.cancel()
+        val session = cachedSession
+        if (session != null) {
+            cachedSession = null
+            session.closeQuietly()
+        }
     }
 
     private class CachedSession(

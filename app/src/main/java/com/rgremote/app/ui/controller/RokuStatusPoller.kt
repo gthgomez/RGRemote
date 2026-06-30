@@ -39,7 +39,11 @@ class RokuStatusPoller(
                 val selected = state.selectedDevice
                 if (selected != null && selected.type == DeviceType.ROKU_TV) {
                     if (!state.isScanning && !state.isLoadingApps && state.connectionStatus != ConnectionStatus.CHECKING) {
-                        pollRokuStatus(selected)
+                        try {
+                            pollRokuStatus(selected)
+                        } catch (e: Exception) {
+                            // Prevent a single poll failure from killing the loop.
+                        }
                     }
                 }
             }
@@ -51,9 +55,18 @@ class RokuStatusPoller(
         pollingJob = null
     }
 
-    suspend fun pollRokuStatus(device: RegisteredDevice) {
-        statusMutex.withLock {
-            rokuConnection.probeDeviceInfo(device)
+    /**
+     * Core probe pipeline shared by [pollRokuStatus] and [refreshRokuStatus].
+     *
+     * Executes probeDeviceInfo → resolveDevice → markCommandSuccess →
+     * update control/power availability → queryActiveApp → update state
+     * with active app and connected diagnostic.
+     *
+     * On failure, calls [registry.markCommandFailure] but does NOT update
+     * connection status or diagnostic — callers set those per their context.
+     */
+    private suspend fun executeStatusProbe(device: RegisteredDevice): Result<RokuDeviceInfo> {
+        return rokuConnection.probeDeviceInfo(device)
             .onSuccess { info ->
                 val resolved = rokuConnection.resolveDevice(device)
                 registry.markCommandSuccess(resolved)
@@ -80,6 +93,12 @@ class RokuStatusPoller(
             }
             .onFailure { error ->
                 registry.markCommandFailure(device)
+            }
+    }
+
+    suspend fun pollRokuStatus(device: RegisteredDevice) {
+        statusMutex.withLock {
+            executeStatusProbe(device).onFailure { error ->
                 updateState {
                     it.copy(
                         connectionStatus = ConnectionStatus.OFFLINE,
@@ -98,33 +117,11 @@ class RokuStatusPoller(
         statusMutex.withLock {
             updateState(withStatus(ConnectionStatus.CHECKING))
             updateState(withDiagnostic("Checking Roku ECP..."))
-            rokuConnection.probeDeviceInfo(roku)
-                .onSuccess { info ->
-                    val resolved = rokuConnection.resolveDevice(roku)
-                    registry.markCommandSuccess(resolved)
-                    updateRokuControlAvailability(resolved.id, info)
-                    updateRokuPowerMode(resolved.id, info.powerMode)
+            executeStatusProbe(roku)
+                .onSuccess {
                     updateState(withStatus(ConnectionStatus.ONLINE))
-                    rokuConnection.queryActiveApp(resolved)
-                        .onSuccess { app ->
-                            updateState {
-                                it.copy(
-                                    activeApp = app,
-                                    diagnosticMessage = rokuConnectedDiagnostic(
-                                        info.powerMode,
-                                        app?.name
-                                    ),
-                                )
-                            }
-                        }
-                        .onFailure {
-                            updateState(withDiagnostic(
-                                rokuConnectedDiagnostic(info.powerMode, activeAppName = null)
-                            ))
-                        }
                 }
                 .onFailure { error ->
-                    registry.markCommandFailure(roku)
                     updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
                     updateState(withDiagnostic("Roku ECP check failed: ${error.displayMessage()}"))
                 }

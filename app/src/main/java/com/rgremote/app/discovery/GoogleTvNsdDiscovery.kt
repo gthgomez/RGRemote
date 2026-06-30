@@ -128,45 +128,53 @@ class GoogleTvNsdDiscovery(
             }
         }
 
-        nsdManager.resolveService(
-            next,
-            object : NsdManager.ResolveListener {
-                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                    if (!finished.compareAndSet(false, true)) return
-                    resolveTimeoutJob?.cancel()
-                    if (generation != discoveryGeneration) return
-                    onError("Google TV resolve failed: $errorCode")
-                    finishResolve(generation, onDevice, onError)
-                }
-
-                override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                    if (!finished.compareAndSet(false, true)) return
-                    resolveTimeoutJob?.cancel()
-                    if (generation != discoveryGeneration) return
-                    val host = serviceInfo.host?.hostAddress ?: run {
+        try {
+            nsdManager.resolveService(
+                next,
+                object : NsdManager.ResolveListener {
+                    override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                        if (!finished.compareAndSet(false, true)) return
+                        resolveTimeoutJob?.cancel()
+                        if (generation != discoveryGeneration) return
+                        onError("Google TV resolve failed: $errorCode")
                         finishResolve(generation, onDevice, onError)
-                        return
                     }
-                    val port = if (serviceInfo.port > 0) serviceInfo.port else 6466
-                    val id = "googletv:${serviceInfo.serviceName.lowercase(Locale.US)}"
-                    onDevice(
-                        RegisteredDevice(
-                            id = id,
-                            type = DeviceType.GOOGLE_TV,
-                            ipAddress = host,
-                            port = port,
-                            uniqueId = serviceInfo.serviceName,
-                            friendlyName = serviceInfo.serviceName.ifBlank { "Google TV $host" },
-                            lastSeenMillis = clockMillis(),
-                            hdmiPortMapping = null,
-                            isOnline = true,
-                            consecutiveFailures = 0
+
+                    override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                        if (!finished.compareAndSet(false, true)) return
+                        resolveTimeoutJob?.cancel()
+                        if (generation != discoveryGeneration) return
+                        val host = serviceInfo.host?.hostAddress ?: run {
+                            finishResolve(generation, onDevice, onError)
+                            return
+                        }
+                        val port = if (serviceInfo.port > 0) serviceInfo.port else 6466
+                        val id = "googletv:${serviceInfo.serviceName.lowercase(Locale.US)}"
+                        onDevice(
+                            RegisteredDevice(
+                                id = id,
+                                type = DeviceType.GOOGLE_TV,
+                                ipAddress = host,
+                                port = port,
+                                uniqueId = serviceInfo.serviceName,
+                                friendlyName = serviceInfo.serviceName.ifBlank { "Google TV $host" },
+                                lastSeenMillis = clockMillis(),
+                                hdmiPortMapping = null,
+                                isOnline = true,
+                                consecutiveFailures = 0
+                            )
                         )
-                    )
-                    finishResolve(generation, onDevice, onError)
+                        finishResolve(generation, onDevice, onError)
+                    }
                 }
+            )
+        } catch (e: Exception) {
+            if (finished.compareAndSet(false, true)) {
+                resolveTimeoutJob?.cancel()
+                onError("Google TV resolve failed synchronously: ${e.message}")
+                finishResolve(generation, onDevice, onError)
             }
-        )
+        }
     }
 
     private fun finishResolve(

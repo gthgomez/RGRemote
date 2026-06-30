@@ -13,7 +13,9 @@ import com.rgremote.app.ui.ConnectionStatus
 import com.rgremote.app.ui.RokuControlAvailability
 import com.rgremote.app.ui.RGRemoteUiState
 import com.rgremote.app.ui.withStatus
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -28,14 +30,17 @@ class DeviceCommandExecutor(
     private val onCommandSuccess: suspend (RegisteredDevice, RemoteCommand) -> Unit
 ) {
     private val commandQueue = Channel<suspend () -> Unit>(64)
+    private var feedbackClearJob: Job? = null
 
     init {
         scope.launch {
             for (action in commandQueue) {
                 try {
                     action()
+                } catch (e: CancellationException) {
+                    throw e // Re-throw to respect coroutine cancellation contract
                 } catch (e: Exception) {
-                    // Prevent queue failure on errors
+                    // Prevent queue failure on non-cancellation errors
                 }
             }
         }
@@ -111,8 +116,25 @@ class DeviceCommandExecutor(
     }
 
     private fun setCommandFeedback(message: String?) {
+        feedbackClearJob?.cancel()
+        if (message == null) {
+            updateState { state ->
+                state.copy(userFeedback = null, showFeedback = false)
+            }
+            return
+        }
         updateState { state ->
-            state.copy(userFeedback = message, showFeedback = message != null)
+            state.copy(userFeedback = message, showFeedback = true)
+        }
+        feedbackClearJob = scope.launch {
+            delay(FEEDBACK_CLEAR_DELAY_MILLIS)
+            updateState { state ->
+                if (state.userFeedback == message) {
+                    state.copy(userFeedback = null, showFeedback = false)
+                } else {
+                    state
+                }
+            }
         }
     }
 
@@ -130,4 +152,8 @@ class DeviceCommandExecutor(
             is RemoteCommand.LaunchApp -> "launch"
             is RemoteCommand.SetInput -> port.displayName
         }
+
+    companion object {
+        private const val FEEDBACK_CLEAR_DELAY_MILLIS = 3_000L
+    }
 }
