@@ -7,9 +7,9 @@ import org.junit.Test
 class DeviceCanonicalTest {
     @Test
     fun canonicalDevicesPerType_keepsOnePerType() {
-        val rokuA = device(DeviceType.ROKU_TV, "roku:a", "192.168.1.10", 1_000L)
-        val rokuB = device(DeviceType.ROKU_TV, "roku:b", "192.168.1.10", 2_000L)
-        val google = device(DeviceType.GOOGLE_TV, "googletv:x", "192.168.1.20", 3_000L)
+        val rokuA = device(DeviceType.ROKU_TV, "roku:a", "192.168.1.10", 1_000L, uniqueId = "serial:roku1")
+        val rokuB = device(DeviceType.ROKU_TV, "roku:b", "192.168.1.10", 2_000L, uniqueId = "serial:roku1")
+        val google = device(DeviceType.GOOGLE_TV, "googletv:x", "192.168.1.20", 3_000L, uniqueId = "serial:google1")
 
         val canonical = listOf(rokuA, rokuB, google).canonicalDevicesPerType()
 
@@ -21,19 +21,25 @@ class DeviceCanonicalTest {
     @Test
     fun duplicateDeviceCount_reportsExtras() {
         val devices = listOf(
-            device(DeviceType.ROKU_TV, "roku:a", "192.168.1.10", 1_000L),
-            device(DeviceType.ROKU_TV, "roku:b", "192.168.1.10", 2_000L),
+            device(DeviceType.ROKU_TV, "roku:a", "192.168.1.10", 1_000L, uniqueId = "serial:roku1"),
+            device(DeviceType.ROKU_TV, "roku:b", "192.168.1.10", 2_000L, uniqueId = "serial:roku1"),
         )
         assertEquals(1, devices.duplicateDeviceCount())
     }
 
-    private fun device(type: DeviceType, id: String, ip: String, seen: Long): RegisteredDevice =
+    private fun device(
+        type: DeviceType,
+        id: String,
+        ip: String,
+        seen: Long,
+        uniqueId: String = id
+    ): RegisteredDevice =
         RegisteredDevice(
             id = id,
             type = type,
             ipAddress = ip,
             port = if (type == DeviceType.ROKU_TV) 8060 else 6466,
-            uniqueId = id,
+            uniqueId = uniqueId,
             friendlyName = "TV",
             lastSeenMillis = seen,
             hdmiPortMapping = null,

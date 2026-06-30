@@ -76,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
@@ -313,22 +314,23 @@ internal fun Modifier.cyberEtch(accent: Color, alpha: Float = 0.24f): Modifier =
 
 /** Faint PCB-style grid behind the whole screen (reference mockup). */
 internal fun Modifier.circuitBoardBackground(accent: Color = PurpleGlow): Modifier =
-    drawBehind {
+    drawWithCache {
+        // Lines are computed once per size change, not every frame.
         val line = accent.copy(alpha = 0.04f)
         val dot = accent.copy(alpha = 0.10f)
         val step = 28.dp.toPx()
+        val horizontalLines = mutableListOf<Float>()  // y offsets
+        val verticalLines = mutableListOf<Float>()    // x offsets
         var x = 0f
-        while (x < size.width) {
-            drawLine(line, Offset(x, 0f), Offset(x, size.height), 0.5f)
-            x += step
-        }
+        while (x < size.width) { verticalLines += x; x += step }
         var y = 0f
-        while (y < size.height) {
-            drawLine(line, Offset(0f, y), Offset(size.width, y), 0.5f)
-            y += step
+        while (y < size.height) { horizontalLines += y; y += step }
+        onDrawBehind {
+            for (vx in verticalLines)  drawLine(line, Offset(vx, 0f), Offset(vx, size.height), 0.5f)
+            for (hy in horizontalLines) drawLine(line, Offset(0f, hy), Offset(size.width, hy), 0.5f)
+            drawCircle(dot, radius = 1.2f, center = Offset(size.width * 0.18f, size.height * 0.22f))
+            drawCircle(dot, radius = 1.2f, center = Offset(size.width * 0.82f, size.height * 0.68f))
         }
-        drawCircle(dot, radius = 1.2f, center = Offset(size.width * 0.18f, size.height * 0.22f))
-        drawCircle(dot, radius = 1.2f, center = Offset(size.width * 0.82f, size.height * 0.68f))
     }
 
 /** Soft radial glow behind the hero remote card. */
@@ -348,21 +350,25 @@ internal fun Modifier.remoteHeroAmbient(accent: Color, strength: Float = 0.35f):
     }
 
 internal fun Modifier.iridescentBorder(accent: Color, width: Dp = 1.25.dp, cornerRadius: Dp = 28.dp): Modifier =
-    drawBehind {
+    drawWithCache {
+        // Brush and corner values are rebuilt only when size, accent, width, or cornerRadius changes.
         val stroke = width.toPx()
         val radius = cornerRadius.toPx()
-        drawRoundRect(
-            brush = Brush.linearGradient(
-                colors = listOf(
-                    accent.copy(alpha = 0.85f),
-                    NeoBlueAccent.copy(alpha = 0.45f),
-                    accent.copy(alpha = 0.55f),
-                    Color.White.copy(alpha = 0.12f)
-                ),
-                start = Offset(0f, 0f),
-                end = Offset(size.width, size.height)
+        val brush = Brush.linearGradient(
+            colors = listOf(
+                accent.copy(alpha = 0.85f),
+                NeoBlueAccent.copy(alpha = 0.45f),
+                accent.copy(alpha = 0.55f),
+                Color.White.copy(alpha = 0.12f)
             ),
-            cornerRadius = CornerRadius(radius, radius),
-            style = Stroke(width = stroke)
+            start = Offset(0f, 0f),
+            end = Offset(size.width, size.height)
         )
+        onDrawBehind {
+            drawRoundRect(
+                brush = brush,
+                cornerRadius = CornerRadius(radius, radius),
+                style = Stroke(width = stroke)
+            )
+        }
     }

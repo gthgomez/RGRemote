@@ -288,7 +288,7 @@ private fun useEcosystemSegmentBar(state: RGRemoteUiState): Boolean {
 }
 
 @Composable
-private fun HeaderOverflowMenu(
+internal fun HeaderOverflowMenu(
     expanded: Boolean,
     state: RGRemoteUiState,
     selected: RegisteredDevice?,

@@ -90,6 +90,10 @@ class RokuEcpClient(
             open(device, path, method = "GET", timeoutMillis).use { connection ->
                 val code = connection.responseCode
                 if (code !in 200..299) {
+                    // Consume error body so connection can return to keep-alive pool
+                    try {
+                        connection.errorStream?.use { it.readBytes() }
+                    } catch (_: Exception) { }
                     throw rokuHttpException(path, code, method = "GET")
                 }
                 connection.inputStream.bufferedReader().use { it.readText() }
@@ -107,7 +111,19 @@ class RokuEcpClient(
                 connection.outputStream.use { it.write(ByteArray(0)) }
                 val code = connection.responseCode
                 if (code !in 200..299) {
+                    // Consume error body so connection can return to keep-alive pool
+                    try {
+                        connection.errorStream?.use { it.readBytes() }
+                    } catch (_: Exception) { }
                     throw rokuHttpException(path, code, method = "POST")
+                }
+                // Consuming the input stream returns the connection to the keep-alive pool.
+                try {
+                    connection.inputStream.use { it.readBytes() }
+                } catch (_: Exception) {
+                    try {
+                        connection.errorStream?.use { it.readBytes() }
+                    } catch (_: Exception) {}
                 }
             }
         }
@@ -156,9 +172,8 @@ private fun VolumeCommand.rokuKey(): String =
         VolumeCommand.MUTE -> "VolumeMute"
     }
 
-private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R =
-    try {
-        block(this)
-    } finally {
-        disconnect()
-    }
+// Do NOT call disconnect() here. Returning without disconnect() lets the JVM
+// keep the socket alive in HttpURLConnection's internal connection pool, enabling
+// HTTP Keep-Alive reuse across rapid ECP button presses. Each caller already
+// closes its response stream (inputStream / outputStream) via stdlib `.use {}`.
+private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R = block(this)

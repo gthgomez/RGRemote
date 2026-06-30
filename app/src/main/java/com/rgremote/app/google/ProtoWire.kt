@@ -6,6 +6,8 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 
+class MalformedProtoWireException(message: String) : IOException(message)
+
 object ProtoWire {
     private const val MAX_FRAME_SIZE_BYTES = 65_536 // 64KB limit
 
@@ -54,12 +56,18 @@ object ProtoWire {
                 2 -> {
                     val length = readVarint(bytes, index)
                     index = length.nextIndex
-                    val end = index + length.value.toInt()
-                    if (end > bytes.size) throw EOFException("Length-delimited field overran frame")
+                    val lengthValue = length.value
+                    if (lengthValue < 0 || lengthValue > Int.MAX_VALUE) {
+                        throw MalformedProtoWireException("Invalid length-delimited field length: $lengthValue")
+                    }
+                    val end = index + lengthValue.toInt()
+                    if (end > bytes.size || end < index) {
+                        throw EOFException("Length-delimited field overran frame")
+                    }
                     fields += Field(fieldNumber, wireType, bytes = bytes.copyOfRange(index, end))
                     index = end
                 }
-                else -> error("Unsupported protobuf wire type $wireType")
+                else -> throw MalformedProtoWireException("Unsupported protobuf wire type $wireType")
             }
         }
         return fields
@@ -118,7 +126,7 @@ object ProtoWire {
             if ((byte and 0x80) == 0) return result
             shift += 7
         }
-        error("Malformed protobuf varint")
+        throw MalformedProtoWireException("Malformed protobuf varint")
     }
 
     private fun readVarint(bytes: ByteArray, startIndex: Int): VarintRead {
@@ -132,6 +140,6 @@ object ProtoWire {
             if ((byte and 0x80) == 0) return VarintRead(result, index)
             shift += 7
         }
-        error("Malformed protobuf varint")
+        throw MalformedProtoWireException("Malformed protobuf varint")
     }
 }

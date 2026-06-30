@@ -74,6 +74,9 @@ internal fun RemoteTabLayout(
             onDpad = onDpad,
             onCommand = onCommand,
             onVolume = onVolume,
+            onScan = onScan,
+            onRefreshStatus = onRefreshStatus,
+            onOpenSetupGuide = onOpenSetupGuide,
         )
         Box(
             modifier = Modifier

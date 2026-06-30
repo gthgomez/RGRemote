@@ -95,6 +95,9 @@ internal fun RemoteSurface(
     onDpad: (DpadDirection) -> Unit,
     onCommand: (RemoteCommand) -> Unit,
     onVolume: (VolumeCommand) -> Unit,
+    onScan: () -> Unit,
+    onRefreshStatus: () -> Unit,
+    onOpenSetupGuide: () -> Unit,
 ) {
     val selected = state.selectedDevice
     val rokuPowerMode = if (ecosystem.type == DeviceType.ROKU_TV) state.selectedRokuPowerMode else null
@@ -134,6 +137,69 @@ internal fun RemoteSurface(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Top Row: Device Name, Connection Status, and Overflow actions
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = selected?.friendlyName ?: "No device selected",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(statusColor(state.connectionStatus, accent))
+                            )
+                            Text(
+                                text = if (selected?.type == DeviceType.ROKU_TV) {
+                                    rokuConnectionStatusLabel(state)
+                                } else {
+                                    state.connectionStatus.label
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = statusColor(state.connectionStatus, accent),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(
+                            onClick = { menuExpanded = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Device Actions",
+                                tint = PrimaryText.copy(alpha = 0.8f)
+                            )
+                        }
+                        HeaderOverflowMenu(
+                            expanded = menuExpanded,
+                            state = state,
+                            selected = selected,
+                            onDismiss = { menuExpanded = false },
+                            onScan = onScan,
+                            onRefreshStatus = onRefreshStatus,
+                            onOpenSetupGuide = onOpenSetupGuide
+                        )
+                    }
+                }
+
                 EcosystemSegmentBar(
                     state = state,
                     selected = selected,

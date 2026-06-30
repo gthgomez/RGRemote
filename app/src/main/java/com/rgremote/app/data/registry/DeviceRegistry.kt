@@ -8,6 +8,7 @@ import com.rgremote.app.domain.HdmiPort
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.canonicalDevicesPerType
 import com.rgremote.app.domain.sameEndpointAs
+import com.rgremote.app.domain.DEVICE_COMPARATOR
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -34,7 +35,10 @@ class DeviceRegistry(private val dao: DeviceDao) {
                 hdmiPortMapping = device.hdmiPortMapping ?: existing?.hdmiPortMapping
             ).toEntity()
         )
-        dedupeStoredDevices()
+        // dedupeStoredDevices() is intentionally NOT called here.
+        // It is an O(n) full-table scan; calling it per upsert causes excessive DB churn
+        // during SSDP floods. The ViewModel runs a single debounced dedupe after each
+        // scan completes (see RGRemoteViewModel.scanRoku / startForegroundPolling).
     }
 
     suspend fun removeDevice(deviceId: String) {
@@ -61,13 +65,7 @@ class DeviceRegistry(private val dao: DeviceDao) {
             if (groupDevices.isEmpty()) return@forEach
 
             // Pick the best representative to keep (prefer real serial over manual entry)
-            val canonical = groupDevices.maxWithOrNull(
-                compareBy<RegisteredDevice> { !it.uniqueId.startsWith("manual:") }
-                    .thenBy { it.hdmiPortMapping != null }
-                    .thenBy { it.isOnline }
-                    .thenBy { it.consecutiveFailures == 0 }
-                    .thenBy { it.lastSeenMillis }
-            ) ?: groupDevices.first()
+            val canonical = groupDevices.maxWithOrNull(DEVICE_COMPARATOR) ?: groupDevices.first()
 
             val duplicates = groupDevices.filter { it.id != canonical.id }
             if (duplicates.isNotEmpty()) {

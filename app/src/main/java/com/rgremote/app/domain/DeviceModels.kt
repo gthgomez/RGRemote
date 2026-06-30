@@ -112,4 +112,6 @@ data class GoogleTvStatus(
 
 interface RemoteAdapter {
     suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit>
+    fun invalidateSession(deviceId: String? = null) {}
+    fun shutdown() {}
 }

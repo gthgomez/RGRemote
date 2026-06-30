@@ -4,6 +4,8 @@
 /app/build/
 /app/.cxx/
 /local.properties
+/keystore.properties
+
 
 *.iml
 .idea/

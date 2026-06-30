@@ -50,5 +50,9 @@ class DiscoveryService(
         googleTvNsdDiscovery.stop()
     }
 
+    fun destroy() {
+        googleTvNsdDiscovery.destroy()
+    }
+
     var saveAsync: (RegisteredDevice) -> Unit = {}
 }

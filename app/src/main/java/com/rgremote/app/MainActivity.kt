@@ -27,6 +27,7 @@ import com.rgremote.app.ui.theme.RGRemoteTheme
 
 class MainActivity : ComponentActivity() {
     private lateinit var viewModel: RGRemoteViewModel
+    private lateinit var discoveryService: DiscoveryService
     private val nearbyWifiPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -41,7 +42,7 @@ class MainActivity : ComponentActivity() {
         val registry = DeviceRegistry(dao)
         val rokuClient = RokuEcpClient()
         val keyStore = GoogleTvKeyStore(applicationContext)
-        val discoveryService = DiscoveryService(
+        discoveryService = DiscoveryService(
             registry = registry,
             rokuSsdpDiscovery = RokuSsdpDiscovery(applicationContext),
             googleTvNsdDiscovery = GoogleTvNsdDiscovery(applicationContext),
@@ -77,6 +78,13 @@ class MainActivity : ComponentActivity() {
         }
 
         requestNearbyWifiPermissionOrStart()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::discoveryService.isInitialized) {
+            discoveryService.destroy()
+        }
     }
 
     private fun requestNearbyWifiPermissionOrStart() {

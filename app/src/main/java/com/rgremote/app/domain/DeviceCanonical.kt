@@ -4,6 +4,13 @@ package com.rgremote.app.domain
  * Picks one saved row per [DeviceType] for UI and control.
  * Duplicate rows usually come from discovery assigning a new id after serial enrichment.
  */
+val DEVICE_COMPARATOR: Comparator<RegisteredDevice> =
+    compareBy<RegisteredDevice> { !it.uniqueId.startsWith("manual:") }
+        .thenBy { it.hdmiPortMapping != null }
+        .thenBy { it.isOnline }
+        .thenBy { it.consecutiveFailures == 0 }
+        .thenBy { it.lastSeenMillis }
+
 fun List<RegisteredDevice>.canonicalDevicesPerType(): List<RegisteredDevice> {
     val groups = groupBy { device ->
         if (device.uniqueId.startsWith("manual:")) {
@@ -12,13 +19,8 @@ fun List<RegisteredDevice>.canonicalDevicesPerType(): List<RegisteredDevice> {
             "serial:${device.uniqueId.lowercase()}"
         }
     }
-    val comparator = compareBy<RegisteredDevice> { !it.uniqueId.startsWith("manual:") }
-        .thenBy { it.hdmiPortMapping != null }
-        .thenBy { it.isOnline }
-        .thenBy { it.consecutiveFailures == 0 }
-        .thenBy { it.lastSeenMillis }
     return groups.map { (_, groupDevices) ->
-        groupDevices.maxWithOrNull(comparator) ?: groupDevices.first()
+        groupDevices.maxWithOrNull(DEVICE_COMPARATOR) ?: groupDevices.first()
     }
 }
 

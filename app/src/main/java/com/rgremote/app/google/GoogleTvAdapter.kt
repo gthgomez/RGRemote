@@ -11,16 +11,33 @@ import com.rgremote.app.google.ProtoWire.messageField
 import com.rgremote.app.google.ProtoWire.stringField
 import com.rgremote.app.google.ProtoWire.varintField
 import com.rgremote.app.google.ProtoWire.writeFrame
+import android.util.Log
 import java.io.IOException
 import java.net.SocketTimeoutException
 import javax.net.ssl.SSLSocket
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class GoogleTvAdapter(
     private val registry: DeviceRegistry,
     private val keyStore: GoogleTvKeyStore,
 ) : RemoteAdapter {
+
+    /**
+     * Serializes concurrent sends so rapid button presses queue rather than opening
+     * parallel TLS handshakes. [cachedSession] is only accessed while this lock is held.
+     */
+    private val sessionMutex = Mutex()
+    @Volatile private var cachedSession: CachedSession? = null
+    private val adapterScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> =
         runCatching {
             val credential = registry.getCredential(device.id)
@@ -28,25 +45,126 @@ class GoogleTvAdapter(
             val serverPin = credential.serverCertificateSha256
                 ?: throw IOException("Google TV credential predates certificate pinning; re-pair the device")
             withContext(Dispatchers.IO) {
-                val socket = keyStore.pairedSslContext(credential.keyAlias, serverPin)
-                    .socketFactory
-                    .createSocket(device.ipAddress, device.port) as SSLSocket
-                socket.soTimeout = READ_TIMEOUT_MILLIS
-                socket.use {
-                    it.startHandshake()
-                    RemoteV2Session(it).send(command)
+                sessionMutex.withLock {
+                    sendWithSessionCache(device, credential.keyAlias, serverPin, command)
                 }
             }
         }
+
+    /**
+     * Sends [command] through the persistent TLS session, creating or replacing the session
+     * as needed. Must always be called while holding [sessionMutex].
+     *
+     * Recovery path: if the cached socket reports closed or throws [IOException] (server
+     * half-closed, network change, TV went to sleep), the socket is discarded and a fresh
+     * handshake runs inline before the command is retried — the caller sees no failure.
+     */
+    private fun sendWithSessionCache(
+        device: RegisteredDevice,
+        keyAlias: String,
+        serverPin: String,
+        command: RemoteCommand,
+    ) {
+        val existing = cachedSession
+        if (existing != null) {
+            val stale = existing.deviceId != device.id || existing.socket.isClosed || existing.isIdleExpired()
+            if (!stale) {
+                try {
+                    existing.session.send(command)
+                    existing.touch()
+                    return
+                } catch (_: IOException) {
+                    // Session went dead mid-use (server closed, network hiccup, TV slept).
+                    // Close quietly and fall through to reconnect below.
+                }
+            }
+            existing.closeQuietly()
+            cachedSession = null
+        }
+
+        // No usable cached session — open a fresh persistent TLS connection.
+        val sslContext = keyStore.pairedSslContext(keyAlias, serverPin)
+        val socket = sslContext.socketFactory.createSocket() as SSLSocket
+        socket.soTimeout = READ_TIMEOUT_MILLIS
+        socket.connect(
+            java.net.InetSocketAddress(device.ipAddress, device.port),
+            CONNECT_TIMEOUT_MILLIS
+        )
+        socket.startHandshake()
+        val session = RemoteV2Session(socket)
+        val fresh = CachedSession(device.id, socket, session)
+        cachedSession = fresh
+        session.send(command)   // also performs Remote v2 negotiation on first use
+        fresh.touch()
+    }
+
+    /**
+     * Forcibly closes and discards the cached TLS session.
+     *
+     * Pass [deviceId] to only invalidate the session for that device (e.g., after re-pair);
+     * pass null to unconditionally invalidate any cached session.
+     */
+    override fun invalidateSession(deviceId: String?) {
+        adapterScope.launch {
+            sessionMutex.withLock {
+                val session = cachedSession ?: return@launch
+                if (deviceId == null || session.deviceId == deviceId) {
+                    cachedSession = null
+                    session.closeQuietly()
+                }
+            }
+        }
+    }
+
+    override fun shutdown() {
+        invalidateSession(null)
+        adapterScope.cancel()
+    }
+
+    private class CachedSession(
+        val deviceId: String,
+        val socket: SSLSocket,
+        val session: RemoteV2Session,
+    ) {
+        private var lastUsedMillis: Long = System.currentTimeMillis()
+
+        /** Updates the last-used timestamp so the idle timer resets on each command. */
+        fun touch() {
+            lastUsedMillis = System.currentTimeMillis()
+        }
+
+        /** Returns true if the session has been idle longer than [SESSION_IDLE_TIMEOUT_MILLIS]. */
+        fun isIdleExpired(): Boolean =
+            System.currentTimeMillis() - lastUsedMillis > SESSION_IDLE_TIMEOUT_MILLIS
+
+        /** Closes the underlying socket without propagating any exception. */
+        fun closeQuietly() {
+            runCatching { socket.close() }
+        }
+    }
 
     private class RemoteV2Session(private val socket: SSLSocket) {
         private val input = socket.inputStream
         private val output = socket.outputStream
         private var activeFeatures = FEATURE_MASK
         private var sentInitialFallback = false
+        /**
+         * Tracks whether Remote v2 feature negotiation has completed for this socket.
+         * On first [send] the full negotiation runs; on subsequent sends we only drain
+         * any server messages that arrived between commands (pings, state updates).
+         */
+        private var negotiated = false
 
         fun send(command: RemoteCommand) {
-            negotiateUntilStarted()
+            if (!negotiated) {
+                // Fresh socket: perform full Remote v2 feature negotiation.
+                negotiateUntilStarted()
+                negotiated = true
+            } else {
+                // Reused socket: drain any pending server messages (especially pings)
+                // that arrived since the last command, before writing a new one.
+                drainServerMessages()
+            }
             requireFeature(command.requiredFeature())
             output.writeFrame(command.toRemoteMessage())
             drainServerMessages()
@@ -64,7 +182,10 @@ class GoogleTvAdapter(
                             output.writeFrame(remoteSetActive(activeFeatures))
                             return@readAndHandleServerMessage false
                         }
-                        throw IOException("Google TV did not finish Remote v2 negotiation")
+                        if (System.currentTimeMillis() >= deadline) {
+                            throw IOException("Google TV did not finish Remote v2 negotiation (timed out)")
+                        }
+                        false
                     }
                 )
                 sawServerMessage = true
@@ -74,14 +195,23 @@ class GoogleTvAdapter(
         }
 
         private fun drainServerMessages() {
-            val previousTimeout = socket.soTimeout
-            socket.soTimeout = POST_COMMAND_DRAIN_MILLIS
             try {
-                while (true) {
+                while (socket.inputStream.available() > 0) {
                     readAndHandleServerMessage(onTimeout = { return })
                 }
-            } finally {
-                socket.soTimeout = previousTimeout
+                // After draining available bytes, attempt one more blocking read with short timeout
+                // to catch TLS records mid-decryption (available() can return 0 on SSLSocket while
+                // a TLS record is still being decrypted).
+                socket.soTimeout = TLS_DRAIN_TIMEOUT_MILLIS
+                try {
+                    readAndHandleServerMessage(onTimeout = { true })
+                } catch (_: SocketTimeoutException) {
+                    // Expected — no more messages pending
+                } finally {
+                    socket.soTimeout = READ_TIMEOUT_MILLIS
+                }
+            } catch (e: IOException) {
+                Log.d("GoogleTvAdapter", "drainServerMessages: socket error, session will be re-created on next send", e)
             }
         }
 
@@ -164,8 +294,16 @@ class GoogleTvAdapter(
         internal const val KEYCODE_WAKEUP = 224L
 
         private const val READ_TIMEOUT_MILLIS = 1_500
+        private const val CONNECT_TIMEOUT_MILLIS = 3_000
         private const val NEGOTIATION_TIMEOUT_MILLIS = 5_000
         private const val POST_COMMAND_DRAIN_MILLIS = 350
+        /**
+         * Sessions idle longer than this are considered stale: the next send closes the
+         * old socket and opens a fresh TLS connection rather than risk a half-dead channel.
+         * 45 s is comfortably inside typical OS TCP keep-alive probe windows.
+         */
+        private const val SESSION_IDLE_TIMEOUT_MILLIS = 45_000L
+        private const val TLS_DRAIN_TIMEOUT_MILLIS = 50
     }
 }
 

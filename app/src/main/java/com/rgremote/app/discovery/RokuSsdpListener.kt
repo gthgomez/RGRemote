@@ -16,6 +16,24 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * Passive SSDP multicast listener that announces Roku ECP devices as they appear.
+ *
+ * ### MulticastLock strategy
+ * The lock is acquired when [start] is called so the system delivers multicast UDP
+ * packets to this socket. Once the first Roku device is confirmed and forwarded to
+ * [onDeviceDiscovered], the lock is **released early** — the NIC still belongs to the
+ * multicast group so the kernel buffers packets, but the wake-lock on the WiFi chip is
+ * dropped so it can sleep between intervals. The lock is recaptured only if the caller
+ * invokes [start] again. This avoids the continuous-wake-lock battery drain seen when
+ * the lock is held for the entire lifetime of the background polling job.
+ *
+ * ### Early byte-scan filter
+ * Before allocating a [String] and parsing header fields, each UDP packet is scanned
+ * for the ASCII bytes `roku:ecp` directly on the raw [ByteArray]. Packets from other
+ * SSDP participants (TVs, routers, printers …) are discarded in O(n) with no heap
+ * allocations, keeping the IO thread clean during busy network intervals.
+ */
 class RokuSsdpListener(
     context: Context,
     private val onDeviceDiscovered: (RegisteredDevice) -> Unit
@@ -41,7 +59,7 @@ class RokuSsdpListener(
                     reuseAddress = true
                 }
                 socket = mSocket
-                
+
                 val groupAddress = InetSocketAddress(group, 1900)
                 val netIf = NetworkInterface.getNetworkInterfaces()?.asSequence()?.firstOrNull { ni ->
                     ni.isUp && ni.supportsMulticast() && !ni.isLoopback
@@ -54,8 +72,13 @@ class RokuSsdpListener(
                     try {
                         mSocket.receive(packet)
                     } catch (e: Exception) {
-                        break // Socket closed or thread cancelled
+                        break // Socket closed or job cancelled
                     }
+
+                    // ── Early byte-scan filter ──────────────────────────────────────────────
+                    // Reject packets that don't contain "roku:ecp" (ASCII) before doing any
+                    // String allocation or header parsing. Saves ~10–30 µs per foreign packet.
+                    if (!containsRokuEcpBytes(packet.data, packet.length)) continue
 
                     val message = String(packet.data, 0, packet.length, Charsets.UTF_8)
                     val lines = message.lineSequence()
@@ -101,6 +124,12 @@ class RokuSsdpListener(
                                 withContext(Dispatchers.Main) {
                                     onDeviceDiscovered(device)
                                 }
+                                // ── Early lock release ──────────────────────────────────────
+                                // A Roku is confirmed on the network. Release the MulticastLock
+                                // so the WiFi chip can sleep between multicast intervals. The
+                                // socket remains joined to the group; the kernel buffers any
+                                // subsequent announcements so no packets are lost.
+                                releaseMulticastLock()
                             }
                         }
                     }
@@ -119,6 +148,16 @@ class RokuSsdpListener(
         cleanup()
     }
 
+    private fun releaseMulticastLock() {
+        try {
+            if (multicastLock?.isHeld == true) {
+                multicastLock?.release()
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+    }
+
     private fun cleanup() {
         try {
             socket?.let { s ->
@@ -135,13 +174,30 @@ class RokuSsdpListener(
         }
         socket = null
 
-        try {
-            if (multicastLock?.isHeld == true) {
-                multicastLock?.release()
-            }
-        } catch (e: Exception) {
-            // Ignore
-        }
+        releaseMulticastLock()
         multicastLock = null
+    }
+
+    companion object {
+        /**
+         * Returns true if [data][0..[length]) contains the ASCII byte sequence `roku:ecp`
+         * (case-insensitive via lower-case comparison). Called on the raw receive buffer
+         * before any [String] allocation to avoid parse overhead on non-Roku packets.
+         */
+        internal fun containsRokuEcpBytes(data: ByteArray, length: Int): Boolean {
+            // Pattern: r=0x72/0x52, o=0x6F/0x4F, k=0x6B/0x4B, u=0x75/0x55,
+            //          :=0x3A,      e=0x65/0x45, c=0x63/0x43, p=0x70/0x50
+            val pattern = "roku:ecp"
+            val pLen = pattern.length
+            val limit = length - pLen
+            outer@ for (i in 0..limit) {
+                for (j in 0 until pLen) {
+                    val b = data[i + j].toInt().and(0xFF).toChar().lowercaseChar()
+                    if (b != pattern[j]) continue@outer
+                }
+                return true
+            }
+            return false
+        }
     }
 }

@@ -1,0 +1,147 @@
+package com.rgremote.app.ui.controller
+
+import android.content.Context
+import com.rgremote.app.data.registry.DeviceRegistry
+import com.rgremote.app.discovery.DiscoveryService
+import com.rgremote.app.discovery.RokuSsdpListener
+import com.rgremote.app.domain.DeviceType
+import com.rgremote.app.domain.RegisteredDevice
+import com.rgremote.app.roku.displayMessage
+import com.rgremote.app.ui.ConnectionStatus
+import com.rgremote.app.ui.RGRemoteUiState
+import com.rgremote.app.ui.withDiagnostic
+import com.rgremote.app.ui.withStatus
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+class DiscoveryCoordinator(
+    private val context: Context,
+    private val scope: CoroutineScope,
+    private val discoveryService: DiscoveryService,
+    private val registry: DeviceRegistry,
+    private val getState: () -> RGRemoteUiState,
+    private val updateState: ((RGRemoteUiState) -> RGRemoteUiState) -> Unit,
+    private val onRokuDiscovered: suspend (RegisteredDevice) -> Unit
+) {
+    private var startupDiscoveryStarted = false
+    private var ssdpDedupeJob: Job? = null
+
+    private val ssdpListener = RokuSsdpListener(context) { device ->
+        scope.launch {
+            registry.upsertDiscoveredDevice(device)
+            scheduleDedupe()
+        }
+    }
+
+    fun startSsdpListener() {
+        ssdpListener.start(scope)
+    }
+
+    fun stopSsdpListener() {
+        ssdpListener.stop()
+        ssdpDedupeJob?.cancel()
+        ssdpDedupeJob = null
+    }
+
+    /**
+     * Trigger a debounced dedupe from outside the SSDP listener path
+     * (e.g., Google TV NSD discovery via [RGRemoteViewModel]'s saveAsync).
+     */
+    fun requestDedupe() {
+        scheduleDedupe()
+    }
+
+    fun stopDiscovery() {
+        discoveryService.stopGoogleTvDiscovery()
+        updateState { it.copy(googleDiscoveryRunning = false) }
+    }
+
+    fun scan() {
+        scope.launch {
+            updateState(withStatus(ConnectionStatus.CHECKING))
+            updateState(withDiagnostic("Scanning LAN for Roku devices"))
+            updateState { it.copy(isScanning = true) }
+            val count = runCatching { discoveryService.scanRoku() }
+                .onFailure { error ->
+                    updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
+                    updateState(withDiagnostic("Roku scan failed: ${error.displayMessage()}"))
+                }
+                .getOrDefault(0)
+            
+            val discoveredRoku = if (count > 0) {
+                registry.devices.first().firstOrNull { it.type == DeviceType.ROKU_TV }
+            } else {
+                null
+            }
+            
+            updateState {
+                it.copy(
+                    isScanning = false,
+                    selectedDeviceId = it.selectedDeviceId ?: discoveredRoku?.id,
+                    connectionStatus = when {
+                        count == 0 -> ConnectionStatus.OFFLINE
+                        discoveredRoku != null -> ConnectionStatus.CHECKING
+                        else -> ConnectionStatus.OFFLINE
+                    },
+                    diagnosticMessage = when {
+                        count == 0 -> "No Roku SSDP replies received"
+                        discoveredRoku != null -> "Verifying Roku ECP on saved device..."
+                        else -> "Found $count Roku device(s) but none matched saved TV"
+                    },
+                )
+            }
+            runCatching { registry.dedupeStoredDevices() }
+            discoveredRoku?.let { onRokuDiscovered(it) }
+        }
+    }
+
+    fun startGoogleDiscovery() {
+        runCatching {
+            discoveryService.startGoogleTvDiscovery { error ->
+                updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
+                updateState(withDiagnostic(error))
+            }
+        }
+            .onSuccess { updateState { it.copy(googleDiscoveryRunning = true) } }
+            .onFailure {
+                updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
+                updateState(withDiagnostic("Google TV discovery failed: ${it.message}"))
+            }
+    }
+
+    fun onNearbyWifiPermissionResult(granted: Boolean) {
+        if (startupDiscoveryStarted) return
+        startupDiscoveryStarted = true
+        updateState {
+            it.copy(
+                connectionStatus = ConnectionStatus.CHECKING,
+                diagnosticMessage = if (granted) {
+                    "Nearby Wi-Fi allowed; scanning LAN"
+                } else {
+                    "Nearby Wi-Fi denied; discovery may be limited"
+                },
+            )
+        }
+        startGoogleDiscovery()
+        scan()
+    }
+
+    /**
+     * Debounced dedupe: cancel any in-flight dedupe and restart a 2-second
+     * window.  Used by both SSDP and Google TV NSD discovery paths.
+     */
+    private fun scheduleDedupe() {
+        ssdpDedupeJob?.cancel()
+        ssdpDedupeJob = scope.launch {
+            delay(SSDP_DEDUPE_DEBOUNCE_MILLIS)
+            registry.dedupeStoredDevices()
+        }
+    }
+
+    companion object {
+        private const val SSDP_DEDUPE_DEBOUNCE_MILLIS = 2_000L
+    }
+}
