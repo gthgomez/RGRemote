@@ -39,8 +39,10 @@ class RokuEcpClient(
                 RemoteCommand.PlayPause -> post(device, "keypress/Play")
                 is RemoteCommand.Volume -> post(device, "keypress/${command.command.rokuKey()}")
                 RemoteCommand.PowerOn -> {
-                    device.wifiMac?.let { sendWakeOnLan(it) }
-                    device.ethernetMac?.let { sendWakeOnLan(it) }
+                    withContext(Dispatchers.IO) {
+                        device.wifiMac?.let { sendWakeOnLan(it) }
+                        device.ethernetMac?.let { sendWakeOnLan(it) }
+                    }
                     post(device, "keypress/Home", wakeTimeoutMillis)
                 }
                 RemoteCommand.PowerOff -> post(device, "keypress/PowerOff")

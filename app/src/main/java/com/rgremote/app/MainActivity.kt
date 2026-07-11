@@ -82,9 +82,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (::discoveryService.isInitialized) {
-            discoveryService.destroy()
-        }
+        // DiscoveryService lifecycle is owned by the ViewModel.
+        // Do NOT call discoveryService.destroy() here — the ViewModel survives
+        // configuration changes and would be left with a permanently-cancelled
+        // NSD coroutine scope.
     }
 
     private fun requestNearbyWifiPermissionOrStart() {

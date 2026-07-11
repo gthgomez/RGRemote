@@ -27,12 +27,6 @@ fun List<RegisteredDevice>.canonicalDevicesPerType(): List<RegisteredDevice> {
 fun List<RegisteredDevice>.duplicateDeviceCount(): Int =
     (size - canonicalDevicesPerType().size).coerceAtLeast(0)
 
-private fun devicePreferenceComparator(): Comparator<RegisteredDevice> =
-    compareBy<RegisteredDevice> { it.hdmiPortMapping != null }
-        .thenBy { it.isOnline }
-        .thenBy { it.consecutiveFailures == 0 }
-        .thenBy { it.lastSeenMillis }
-
 fun RegisteredDevice.sameEndpointAs(other: RegisteredDevice): Boolean =
     type == other.type &&
         ipAddress.equals(other.ipAddress, ignoreCase = true) &&

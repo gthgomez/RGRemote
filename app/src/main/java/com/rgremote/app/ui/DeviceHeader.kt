@@ -283,8 +283,13 @@ internal fun ActiveDeviceHeader(
 }
 
 private fun useEcosystemSegmentBar(state: RGRemoteUiState): Boolean {
-    // UI keeps at most one saved row per TV type; always use the slim segment bar.
-    return true
+    val devices = state.devices
+    val rokuCount = devices.count { it.type == DeviceType.ROKU_TV }
+    val googleCount = devices.count { it.type == DeviceType.GOOGLE_TV }
+    if (devices.isEmpty()) return true
+    // When multiple devices of the same type exist, use the grid so each device
+    // gets its own selectable chip. Otherwise the segment bar hides the extras.
+    return rokuCount <= 1 && googleCount <= 1
 }
 
 @Composable
@@ -394,14 +399,10 @@ internal fun EcosystemSegmentBar(
             EcosystemSegment(
                 modifier = Modifier.weight(1f),
                 label = "Roku",
-                selected = selected?.type == DeviceType.ROKU_TV,
+                selected = selected?.id == device.id,
                 accent = RokuPrimary,
                 enabled = true,
-                onClick = {
-                    if (selected?.type != DeviceType.ROKU_TV) {
-                        onSelect(device.id)
-                    }
-                }
+                onClick = { onSelect(device.id) }
             )
         }
         google?.let { device ->
@@ -409,15 +410,11 @@ internal fun EcosystemSegmentBar(
             EcosystemSegment(
                 modifier = Modifier.weight(1f),
                 label = "Google TV",
-                selected = selected?.type == DeviceType.GOOGLE_TV,
+                selected = selected?.id == device.id,
                 accent = GooglePrimary,
                 enabled = true,
-                showAttentionDot = needsAttention && selected?.type != DeviceType.GOOGLE_TV,
-                onClick = {
-                    if (selected?.type != DeviceType.GOOGLE_TV) {
-                        onGoogleSelect(device)
-                    }
-                }
+                showAttentionDot = needsAttention && selected?.id != device.id,
+                onClick = { onGoogleSelect(device) }
             )
         }
     }

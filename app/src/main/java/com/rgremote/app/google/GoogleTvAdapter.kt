@@ -128,10 +128,16 @@ class GoogleTvAdapter(
 
     override fun shutdown() {
         adapterScope.cancel()
-        val session = cachedSession
-        if (session != null) {
-            cachedSession = null
-            session.closeQuietly()
+        runCatching {
+            kotlinx.coroutines.runBlocking {
+                sessionMutex.withLock {
+                    val session = cachedSession
+                    if (session != null) {
+                        cachedSession = null
+                        session.closeQuietly()
+                    }
+                }
+            }
         }
     }
 
@@ -310,7 +316,6 @@ class GoogleTvAdapter(
         private const val READ_TIMEOUT_MILLIS = 1_500
         private const val CONNECT_TIMEOUT_MILLIS = 3_000
         private const val NEGOTIATION_TIMEOUT_MILLIS = 5_000
-        private const val POST_COMMAND_DRAIN_MILLIS = 350
         /**
          * Sessions idle longer than this are considered stale: the next send closes the
          * old socket and opens a fresh TLS connection rather than risk a half-dead channel.

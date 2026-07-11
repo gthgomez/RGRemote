@@ -207,7 +207,7 @@ internal fun RemoteSurface(
                     onGoogleSelect = onGoogleSelect
                 )
 
-                val isStandby = rokuPowerMode?.equals("standby", ignoreCase = true) == true ||
+                val isStandby = RokuPowerMode.displayLabel(rokuPowerMode) == "Standby" ||
                         state.connectionStatus == ConnectionStatus.OFFLINE
 
                 Row(
@@ -227,11 +227,12 @@ internal fun RemoteSurface(
                         RemoteCommand.PowerToggle
                     }
                     val powerColor = if (ecosystem.type == DeviceType.ROKU_TV && isStandby) SuccessGreen else DangerRed
+                    val powerEnabled = if (ecosystem.type == DeviceType.ROKU_TV && isStandby) enabled else powerOffEnabled
                     RoundIconButton(
                         icon = Icons.Default.PowerSettingsNew,
                         label = if (isStandby) "Wake" else "Power",
                         accent = powerColor,
-                        enabled = powerOffEnabled
+                        enabled = powerEnabled
                     ) {
                         onCommand(powerCommand)
                     }
@@ -306,7 +307,7 @@ internal fun RemoteSurface(
                     }
                 }
 
-                if (wakeHint != null && isStandby && ecosystem.type == DeviceType.ROKU_TV) {
+                if (wakeHint != null && ecosystem.type == DeviceType.ROKU_TV) {
                     Text(
                         text = wakeHint,
                         style = MaterialTheme.typography.labelSmall,

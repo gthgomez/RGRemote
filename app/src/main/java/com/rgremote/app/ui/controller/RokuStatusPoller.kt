@@ -74,20 +74,28 @@ class RokuStatusPoller(
                 updateRokuPowerMode(resolved.id, info.powerMode)
                 rokuConnection.queryActiveApp(resolved)
                     .onSuccess { app ->
-                        updateState {
-                            it.copy(
-                                activeApp = app,
-                                connectionStatus = ConnectionStatus.ONLINE,
-                                diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, app?.name)
-                            )
+                        updateState { state ->
+                            if (state.selectedDeviceId == resolved.id) {
+                                state.copy(
+                                    activeApp = app,
+                                    connectionStatus = ConnectionStatus.ONLINE,
+                                    diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, app?.name)
+                                )
+                            } else {
+                                state
+                            }
                         }
                     }
                     .onFailure {
-                        updateState {
-                            it.copy(
-                                connectionStatus = ConnectionStatus.ONLINE,
-                                diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, activeAppName = null)
-                            )
+                        updateState { state ->
+                            if (state.selectedDeviceId == resolved.id) {
+                                state.copy(
+                                    connectionStatus = ConnectionStatus.ONLINE,
+                                    diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, activeAppName = null)
+                                )
+                            } else {
+                                state
+                            }
                         }
                     }
             }

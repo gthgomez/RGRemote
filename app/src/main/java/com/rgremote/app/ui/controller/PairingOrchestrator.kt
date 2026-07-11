@@ -70,6 +70,7 @@ class PairingOrchestrator(
     }
 
     fun finishPairing(device: RegisteredDevice) {
+        if (getState().isPairing) return
         scope.launch {
             try {
                 val pin = getState().pairingPin

@@ -30,7 +30,6 @@ import com.rgremote.app.ui.controller.DeviceCommandExecutor
 import com.rgremote.app.ui.controller.DiscoveryCoordinator
 import com.rgremote.app.ui.controller.PairingOrchestrator
 import com.rgremote.app.ui.controller.RokuStatusPoller
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -114,11 +113,17 @@ data class RGRemoteUiState(
     val isGoogleTvPaired: Boolean =
         googleTvDevice?.id?.let { pairedDeviceIds.contains(it) } == true
 
-    val selectedRokuControls: RokuControlAvailability =
-        rokuDevice?.id?.let { rokuControlsByDeviceId[it] } ?: RokuControlAvailability()
+    val selectedRokuControls: RokuControlAvailability
+        get() {
+            val device = if (selectedDevice?.type == DeviceType.ROKU_TV) selectedDevice else rokuDevice
+            return device?.id?.let { rokuControlsByDeviceId[it] } ?: RokuControlAvailability()
+        }
 
     val selectedRokuPowerMode: String?
-        get() = rokuDevice?.id?.let { rokuPowerModeByDeviceId[it] }
+        get() {
+            val device = if (selectedDevice?.type == DeviceType.ROKU_TV) selectedDevice else rokuDevice
+            return device?.id?.let { rokuPowerModeByDeviceId[it] }
+        }
 }
 
 class RGRemoteViewModel(
@@ -132,10 +137,14 @@ class RGRemoteViewModel(
     private val uiPreferences: RemoteUiPreferences,
 ) : ViewModel() {
     private val localState = MutableStateFlow(RGRemoteUiState())
-    private var feedbackClearJob: Job? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val rokuConnection = RokuConnectionCoordinator(discoveryService, registry, rokuAdapter)
+
+    private val feedback = CommandFeedbackController(
+        scope = viewModelScope,
+        updateState = { action -> localState.update(action) }
+    )
 
     // Extracted Domain Controllers
     private val commandExecutor = DeviceCommandExecutor(
@@ -145,7 +154,8 @@ class RGRemoteViewModel(
         googleTvAdapter = googleTvAdapter,
         getState = { uiState.value },
         updateState = { action -> localState.update(action) },
-        onCommandSuccess = { device, command -> handleCommandSuccess(device, command) }
+        onCommandSuccess = { device, command -> handleCommandSuccess(device, command) },
+        feedback = feedback,
     )
 
     private val pairingOrchestrator = PairingOrchestrator(
@@ -193,7 +203,9 @@ class RGRemoteViewModel(
             val (devices, pairedIds, pins) = deviceSnapshot
             val (showGuide, showUtilities, state) = uiSnapshot
             val canonical = devices.canonicalDevicesPerType()
-            val selected = state.selectedDeviceId?.takeIf { id -> canonical.any { it.id == id } }
+            val persistedId = uiPreferences.selectedDeviceId
+            val selected = state.selectedDeviceId
+                ?: persistedId?.takeIf { id -> canonical.any { it.id == id } }
                 ?: canonical.firstOrNull()?.id
             state.copy(
                 devices = canonical,
@@ -237,9 +249,9 @@ class RGRemoteViewModel(
         networkCallback = callback
     }
 
-    private suspend fun handleCommandSuccess(device: RegisteredDevice, command: RemoteCommand) {
+    private fun handleCommandSuccess(device: RegisteredDevice, command: RemoteCommand) {
         if (device.type == DeviceType.ROKU_TV) {
-            rokuStatusPoller.refreshRokuStatus(device)
+            viewModelScope.launch { rokuStatusPoller.refreshRokuStatus(device) }
         } else {
             refreshStatus()
         }
@@ -248,29 +260,34 @@ class RGRemoteViewModel(
     fun setShowConnectionGuide(show: Boolean) {
         uiPreferences.setShowConnectionGuide(show)
         if (!show) {
-            setCommandFeedback("Connection guide hidden. Re-enable in Settings.")
+            feedback.show("Connection guide hidden. Re-enable in Settings.")
         }
     }
 
     fun setShowUtilitiesDock(show: Boolean) {
         uiPreferences.setShowUtilitiesDock(show)
-        setCommandFeedback(if (show) "Show utilities on Remote" else "Hide utilities on Remote")
+        feedback.show(if (show) "Show utilities on Remote" else "Hide utilities on Remote")
     }
 
     fun removeSavedDevice(deviceId: String) {
         viewModelScope.launch {
             registry.removeDevice(deviceId)
             localState.update { state ->
-                state.copy(selectedDeviceId = if (state.selectedDeviceId == deviceId) null else state.selectedDeviceId)
+                if (state.selectedDeviceId == deviceId) {
+                    uiPreferences.setSelectedDeviceId(null)
+                    state.copy(selectedDeviceId = null, connectionStatus = ConnectionStatus.CHECKING, diagnosticMessage = null)
+                } else {
+                    state.copy(selectedDeviceId = state.selectedDeviceId)
+                }
             }
-            setCommandFeedback("Removed saved device")
+            feedback.show("Removed saved device")
         }
     }
 
     fun dedupeSavedDevices() {
         viewModelScope.launch {
             registry.dedupeStoredDevices()
-            setCommandFeedback("Merged duplicate saved TVs")
+            feedback.show("Merged duplicate saved TVs")
         }
     }
 
@@ -294,6 +311,7 @@ class RGRemoteViewModel(
         googleTvAdapter.shutdown()
         stopDiscovery()
         stopForegroundPolling()
+        discoveryService.destroy()
         networkCallback?.let { callback ->
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             connectivityManager.unregisterNetworkCallback(callback)
@@ -301,21 +319,41 @@ class RGRemoteViewModel(
     }
 
     fun selectDevice(deviceId: String) {
-        localState.update { it.copy(selectedDeviceId = deviceId) }
+        localState.update { it.copy(
+            selectedDeviceId = deviceId,
+            rokuApps = emptyList(),
+            activeApp = null,
+            diagnosticMessage = null,
+            userFeedback = null,
+            showFeedback = false,
+        ) }
+        feedback.cancel()
+        uiPreferences.setSelectedDeviceId(deviceId)
         refreshStatusForDevice(deviceId)
+        refreshCurrentTabIfNeeded(deviceId)
     }
 
     fun clearUserFeedback() {
-        setCommandFeedback(null)
+        feedback.show(null)
     }
 
     fun selectGoogleDevice(deviceId: String) {
         val exists = uiState.value.devices.any { it.id == deviceId && it.type == DeviceType.GOOGLE_TV }
         if (!exists) {
-            setCommandFeedback("Google TV device not found")
+            feedback.show("Google TV device not found")
             return
         }
-        localState.update { it.copy(selectedDeviceId = deviceId) }
+        localState.update { it.copy(
+            selectedDeviceId = deviceId,
+            rokuApps = emptyList(),
+            activeApp = null,
+            diagnosticMessage = null,
+            userFeedback = null,
+            showFeedback = false,
+            connectionStatus = ConnectionStatus.CHECKING,
+        ) }
+        feedback.cancel()
+        uiPreferences.setSelectedDeviceId(deviceId)
         refreshStatus()
     }
 
@@ -347,15 +385,9 @@ class RGRemoteViewModel(
     }
 
     fun refreshRokuChannels() {
-        val roku = uiState.value.rokuDevice ?: return setCommandFeedback("Add a Roku TV first")
+        val roku = uiState.value.rokuDevice ?: return feedback.show("Add a Roku TV first")
         viewModelScope.launch {
-            localState.update {
-                it.copy(
-                    isLoadingApps = true,
-                    connectionStatus = ConnectionStatus.CHECKING,
-                    diagnosticMessage = "Refreshing Roku channels",
-                )
-            }
+            localState.update { it.copy(isLoadingApps = true, connectionStatus = ConnectionStatus.CHECKING, diagnosticMessage = "Refreshing Roku channels") }
             rokuConnection.queryApps(roku)
                 .onSuccess { apps ->
                     registry.markCommandSuccess(roku)
@@ -391,14 +423,14 @@ class RGRemoteViewModel(
                 source = AppTargetSource.DISCOVERED,
             ),
         )
-        setCommandFeedback("Pinned ${app.name}")
+        feedback.show("Pinned ${app.name}")
     }
 
     fun saveGoogleTvApp(displayName: String, launchValue: String) {
         val name = displayName.trim()
         val value = launchValue.trim()
         if (name.isBlank() || value.isBlank()) {
-            setCommandFeedback("Enter an app name and package or deep link")
+            feedback.show("Enter an app name and package or deep link")
             return
         }
         appPinStore.upsert(
@@ -410,23 +442,23 @@ class RGRemoteViewModel(
                 source = AppTargetSource.CUSTOM,
             ),
         )
-        setCommandFeedback("Saved $name")
+        feedback.show("Saved $name")
     }
 
     fun removePinnedApp(target: AppLaunchTarget) {
         appPinStore.remove(target.id)
-        setCommandFeedback("Removed ${target.displayName}")
+        feedback.show("Removed ${target.displayName}")
     }
 
     fun resetAppPins() {
         appPinStore.resetDefaults()
-        setCommandFeedback("Reset app buttons")
+        feedback.show("Reset app buttons")
     }
 
     fun launchPinnedApp(target: AppLaunchTarget) {
         val device = uiState.value.selectedDevice
         if (device?.type != target.deviceType) {
-            setCommandFeedback("Select ${target.deviceType.displayName()} first")
+            feedback.show("Select ${target.deviceType.displayName()} first")
             return
         }
         send(RemoteCommand.LaunchApp(target.launchValue))
@@ -443,7 +475,7 @@ class RGRemoteViewModel(
     fun setHdmiMapping(device: RegisteredDevice, port: HdmiPort?) {
         viewModelScope.launch {
             registry.setHdmiMapping(device.id, port)
-            setCommandFeedback("Saved ${device.friendlyName} mapping")
+            feedback.show("Saved ${device.friendlyName} mapping")
         }
     }
 
@@ -465,7 +497,7 @@ class RGRemoteViewModel(
 
     fun launchTypedTarget() {
         val target = uiState.value.launchTarget.trim()
-        if (target.isBlank()) return setCommandFeedback("Enter an app id, package, or deep link")
+        if (target.isBlank()) return feedback.show("Enter an app id, package, or deep link")
         send(RemoteCommand.LaunchApp(target))
     }
 
@@ -474,41 +506,62 @@ class RGRemoteViewModel(
     }
 
     private fun refreshStatusForDevice(deviceId: String?) {
-        val selected = uiState.value.devices.firstOrNull { it.id == deviceId } ?: uiState.value.selectedDevice
-        if (selected?.type != DeviceType.ROKU_TV) return
-        viewModelScope.launch { rokuStatusPoller.refreshRokuStatus(selected) }
+        val selected = uiState.value.devices.firstOrNull { it.id == deviceId } ?: return
+        if (selected.type == DeviceType.ROKU_TV) {
+            viewModelScope.launch { rokuStatusPoller.refreshRokuStatus(selected) }
+        } else {
+            localState.update { it.copy(connectionStatus = ConnectionStatus.CHECKING) }
+        }
+    }
+
+    /**
+     * If the user is viewing a tab whose content depends on the selected device
+     * (e.g., APPS tab showing Roku channels), kick off a refresh so stale data
+     * from the previous device isn't displayed.
+     */
+    private fun refreshCurrentTabIfNeeded(deviceId: String) {
+        val state = uiState.value
+        val device = state.devices.firstOrNull { it.id == deviceId } ?: return
+        when (state.selectedTab) {
+            RemoteTab.APPS -> {
+                if (device.type == DeviceType.ROKU_TV && state.rokuApps.isEmpty()) {
+                    refreshRokuChannels()
+                }
+            }
+            else -> { /* REMOTE and SETTINGS tabs don't need per-device refresh on switch */ }
+        }
     }
 
     fun watchGoogleTv() {
         val state = uiState.value
-        val roku = state.rokuDevice ?: return setCommandFeedback("Add a Roku TV first")
-        val google = state.googleTvDevice ?: return setCommandFeedback("Add a Google TV first")
-        val port = google.hdmiPortMapping ?: return setCommandFeedback("Map the Google TV HDMI port first")
+        val roku = state.rokuDevice ?: return feedback.show("Add a Roku TV first")
+        val google = state.googleTvDevice ?: return feedback.show("Add a Google TV first")
+        val port = google.hdmiPortMapping ?: return feedback.show("Map the Google TV HDMI port first")
         commandExecutor.enqueueCommand {
             if (commandExecutor.sendTo(roku, RemoteCommand.SetInput(port), showFeedback = false).isFailure) {
-                setCommandFeedback("Failed to switch TV input")
+                feedback.show("Failed to switch TV input")
                 return@enqueueCommand
             }
             delay(800)
             rokuStatusPoller.refreshRokuStatus(roku)
             if (commandExecutor.sendTo(google, RemoteCommand.Home, showFeedback = false).isFailure) {
-                setCommandFeedback("Failed to open Google TV")
+                feedback.show("Failed to open Google TV")
                 return@enqueueCommand
             }
             localState.update { it.copy(selectedDeviceId = google.id) }
-            setCommandFeedback("Switched to Google TV")
+            feedback.show("Switched to Google TV")
         }
     }
 
     fun watchRoku() {
-        val roku = uiState.value.rokuDevice ?: return setCommandFeedback("Add a Roku TV first")
+        val roku = uiState.value.rokuDevice ?: return feedback.show("Add a Roku TV first")
         commandExecutor.enqueueCommand {
             if (commandExecutor.sendTo(roku, RemoteCommand.Home, showFeedback = false).isFailure) {
-                setCommandFeedback("Failed to switch to Roku")
+                feedback.show("Failed to switch to Roku")
                 return@enqueueCommand
             }
             localState.update { it.copy(selectedDeviceId = roku.id) }
-            setCommandFeedback("Switched to Roku")
+            feedback.show("Switched to Roku")
         }
     }
 
@@ -517,7 +570,7 @@ class RGRemoteViewModel(
         val endpoint = runCatching { ManualDeviceEndpoint.parse(rawAddress, defaultPort) }
             .getOrElse { error ->
                 localState.update(withStatus(ConnectionStatus.CONNECTION_FAILED))
-                setCommandFeedback(error.message ?: "Invalid address")
+                feedback.show(error.message ?: "Invalid address")
                 return
             }
         viewModelScope.launch {
@@ -540,11 +593,20 @@ class RGRemoteViewModel(
                         info.friendlyName ?: "Roku TV ${endpoint.host}"
                     },
                     isOnline = true,
-                    consecutiveFailures = 0
+                    consecutiveFailures = 0,
+                    wifiMac = info.wifiMac,
+                    ethernetMac = info.ethernetMac
                 )
                 registry.upsertDiscoveredDevice(device)
                 discoveryCoordinator.requestDedupe()
-                rokuStatusPoller.pollRokuStatus(device)
+                localState.update {
+                    it.copy(
+                        selectedDeviceId = device.id,
+                        connectionStatus = ConnectionStatus.ONLINE,
+                        diagnosticMessage = "Roku ECP connected",
+                    )
+                }
+                viewModelScope.launch { rokuStatusPoller.refreshRokuStatus(device) }
             }
             .onFailure { error ->
                 localState.update(withStatus(ConnectionStatus.CONNECTION_FAILED))
@@ -594,24 +656,6 @@ class RGRemoteViewModel(
             consecutiveFailures = 0
         )
 
-    private fun setCommandFeedback(message: String?) {
-        feedbackClearJob?.cancel()
-        if (message == null) {
-            localState.update { it.copy(userFeedback = null, showFeedback = false) }
-            return
-        }
-        localState.update { it.copy(userFeedback = message, showFeedback = true) }
-        feedbackClearJob = viewModelScope.launch {
-            delay(3_000)
-            localState.update { state ->
-                if (state.userFeedback == message) {
-                    state.copy(userFeedback = null, showFeedback = false)
-                } else {
-                    state
-                }
-            }
-        }
-    }
 
     private fun DeviceType.displayName(): String =
         when (this) {
