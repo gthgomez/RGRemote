@@ -6,6 +6,7 @@ Personal-use Android remote for a TCL Roku TV plus an Onn Google TV box.
 
 - `PROJECT_CONTEXT.md` - repo scope, architecture, file map, and invariants.
 - `AGENTS.md` - cold-start routing, high-risk zones, and local commands for coding agents.
+- `STATUS.md` - active project status and evidence-backed capability breakdown.
 - `docs/ui-target.md` - Roku-side visual target and Google TV separation rules.
 - `docs/release-testing.md` - debug-signed release testing workflow and production signing warning.
 - `QA_CHECKLIST.md` - build, visual, pairing, install, and regression checklist.

@@ -1127,6 +1127,17 @@ private fun SettingsPanel(
                 }
             }
             SettingsSection(
+                title = "Privacy",
+                body = "All control traffic stays on your local network. RGRemote does not require an account or send your data to our servers. Google TV pairing keys are stored in Android Keystore on this phone. Nearby Wi-Fi access is declared neverForLocation—it is used to discover TVs on your LAN, not to track your location.",
+                accent = accent
+            ) {
+                Text(
+                    text = "Saved TVs, HDMI mappings, and pinned shortcuts stay on this device only.",
+                    color = SecondaryText,
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
+            SettingsSection(
                 title = "Diagnostics",
                 body = buildString {
                     append("Status: ${state.connectionStatus.label}")

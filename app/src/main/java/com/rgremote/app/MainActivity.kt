@@ -1,6 +1,7 @@
 package com.rgremote.app
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -96,8 +97,22 @@ class MainActivity : ComponentActivity() {
         val permission = Manifest.permission.NEARBY_WIFI_DEVICES
         if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
             viewModel.onNearbyWifiPermissionResult(granted = true)
-        } else {
-            nearbyWifiPermissionLauncher.launch(permission)
+            return
         }
+        AlertDialog.Builder(this)
+            .setTitle("Nearby Wi-Fi devices")
+            .setMessage(
+                "RGRemote scans your local Wi-Fi network to find Roku TVs and Google TV boxes on the same LAN. " +
+                    "This permission is used for device discovery only—not for location tracking. " +
+                    "The app declares neverForLocation in the manifest."
+            )
+            .setPositiveButton("Continue") { _, _ ->
+                nearbyWifiPermissionLauncher.launch(permission)
+            }
+            .setNegativeButton("Not now") { _, _ ->
+                viewModel.onNearbyWifiPermissionResult(granted = false)
+            }
+            .setCancelable(false)
+            .show()
     }
 }
