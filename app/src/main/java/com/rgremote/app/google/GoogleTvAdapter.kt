@@ -15,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class GoogleTvAdapter(
     private val registry: DeviceRegistry,
@@ -27,10 +28,14 @@ class GoogleTvAdapter(
      */
     private val sessionMutex = Mutex()
     @Volatile private var cachedSession: CachedSession? = null
+
+    /** Set by [shutdown]; blocks new sends and fresh reconnects so no socket outlives shutdown. */
+    @Volatile private var isShutdown = false
     private val adapterScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> =
         runCatching {
+            check(!isShutdown) { "Google TV adapter is shut down" }
             val credential = registry.getCredential(device.id)
                 ?: throw IOException("Google TV is not paired yet")
             val serverPin = credential.serverCertificateSha256
@@ -74,6 +79,9 @@ class GoogleTvAdapter(
         }
 
         // No usable cached session — open a fresh persistent TLS connection.
+        if (isShutdown) {
+            throw IllegalStateException("Google TV adapter is shut down")
+        }
         val sslContext = keyStore.pairedSslContext(keyAlias, serverPin)
         val socket = sslContext.socketFactory.createSocket() as SSLSocket
         try {
@@ -93,9 +101,11 @@ class GoogleTvAdapter(
             session.send(command)   // negotiate + send; only cache on success
             fresh.touch()
             cachedSession = fresh
-        } catch (e: IOException) {
+        } catch (error: Throwable) {
+            // Any throwable must release the connected socket (e.g., a RuntimeException
+            // during negotiation), not just IOException, or the socket leaks.
             runCatching { socket.close() }
-            throw e
+            throw error
         }
     }
 
@@ -122,15 +132,42 @@ class GoogleTvAdapter(
         }
     }
 
+    /**
+     * Shuts the adapter down without ever blocking the calling thread indefinitely
+     * (invoked from ViewModel.onCleared on the main thread).
+     *
+     * Ordering: mark shut down (new sends and reconnects fail fast) → cancel [adapterScope]
+     * → snapshot [cachedSession] → acquire [sessionMutex] with a short bounded timeout.
+     * If the lock is won, the current session is closed under the mutex; if a concurrent
+     * send still holds the mutex mid-network-I/O, only the snapshotted session is closed
+     * best-effort without the lock, keeping shutdown bounded. Safe from any thread.
+     */
     override fun shutdown() {
+        isShutdown = true
         adapterScope.cancel()
+        val snapshot = cachedSession
         runCatching {
-            kotlinx.coroutines.runBlocking {
-                sessionMutex.withLock {
-                    val session = cachedSession
-                    if (session != null) {
-                        cachedSession = null
-                        session.closeQuietly()
+            runBlocking {
+                val acquired = withTimeoutOrNull(SHUTDOWN_LOCK_TIMEOUT_MILLIS) {
+                    sessionMutex.lock()
+                    true
+                } == true
+                try {
+                    if (acquired) {
+                        // Authoritative state under the mutex; may be newer than snapshot.
+                        val session = cachedSession
+                        if (session != null) {
+                            cachedSession = null
+                            session.closeQuietly()
+                        }
+                    } else {
+                        // Lock contended: close only the snapshotted session so we never
+                        // clobber one the in-flight sender created after our snapshot.
+                        snapshot?.closeQuietly()
+                    }
+                } finally {
+                    if (acquired) {
+                        sessionMutex.unlock()
                     }
                 }
             }
@@ -162,6 +199,12 @@ class GoogleTvAdapter(
     companion object {
         private const val READ_TIMEOUT_MILLIS = 1_500
         private const val CONNECT_TIMEOUT_MILLIS = 3_000
+
+        /**
+         * Bound on how long [shutdown] waits for [sessionMutex]. Short so main-thread
+         * callers never ANR; the snapshot best-effort close covers the contended case.
+         */
+        private const val SHUTDOWN_LOCK_TIMEOUT_MILLIS = 250L
         /**
          * Sessions idle longer than this are considered stale: the next send closes the
          * old socket and opens a fresh TLS connection rather than risk a half-dead channel.

@@ -6,6 +6,9 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val hasKeystore = keystorePropertiesFile.exists()
+
 android {
     namespace = "com.rgremote.app"
     compileSdk = 36
@@ -18,9 +21,6 @@ android {
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
-    val keystorePropertiesFile = rootProject.file("keystore.properties")
-    val hasKeystore = keystorePropertiesFile.exists()
 
     signingConfigs {
         if (hasKeystore) {
@@ -42,10 +42,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = if (hasKeystore) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -78,6 +76,19 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val requestsReleaseArtifact = allTasks.any { task ->
+        (task.name.startsWith("assemble") || task.name.startsWith("bundle")) && task.name.endsWith("Release")
+    }
+    if (requestsReleaseArtifact && !hasKeystore) {
+        throw GradleException(
+            "Release build requested but keystore.properties is missing. " +
+                "Refusing to produce an unsigned or debug-signed release artifact. " +
+                "Provide keystore.properties with keyAlias, keyPassword, storeFile, storePassword."
+        )
     }
 }
 

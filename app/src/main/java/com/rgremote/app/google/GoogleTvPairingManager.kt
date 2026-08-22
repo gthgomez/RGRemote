@@ -9,12 +9,18 @@ import com.rgremote.app.google.ProtoWire.messageField
 import com.rgremote.app.google.ProtoWire.stringField
 import com.rgremote.app.google.ProtoWire.varintField
 import com.rgremote.app.google.ProtoWire.writeFrame
+import java.io.IOException
 import java.math.BigInteger
 import java.security.MessageDigest
 import java.security.cert.X509Certificate
 import java.security.interfaces.RSAPublicKey
 import javax.net.ssl.SSLSocket
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -23,6 +29,9 @@ class GoogleTvPairingManager(
     private val registry: DeviceRegistry,
     private val keyStore: GoogleTvKeyStore
 ) {
+    // Watchdog scope: only runs session-expiry timers, so a failure in one must not
+    // cancel the others (SupervisorJob) and timers need no Android main dispatcher.
+    private val watchdogScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val sessions = mutableMapOf<String, PairingSession>()
     private val sessionsMutex = Mutex()
 
@@ -32,7 +41,16 @@ class GoogleTvPairingManager(
                 val credential = keyStore.ensureClientCredential(device.id)
                 val socket = keyStore.pairingSslContext(credential.alias)
                     .socketFactory
-                    .createSocket(device.ipAddress, PAIRING_PORT) as SSLSocket
+                    .createSocket() as SSLSocket
+                try {
+                    socket.connect(
+                        java.net.InetSocketAddress(device.ipAddress, PAIRING_PORT),
+                        PAIRING_CONNECT_TIMEOUT_MILLIS
+                    )
+                } catch (error: IOException) {
+                    runCatching { socket.close() }
+                    throw error
+                }
                 socket.soTimeout = 15_000
                 Log.d(TAG, "Starting TLS pairing handshake with ${device.ipAddress}:$PAIRING_PORT")
                 socket.startHandshake()
@@ -40,6 +58,15 @@ class GoogleTvPairingManager(
                 val session = PairingSession(socket, credential, serverCert)
                 val replacedSession = addSession(device.id, session)
                 replacedSession?.close()
+                // Expiry watchdog: if the user abandons pairing (never finishes the PIN),
+                // reap the session and free the socket and the TV's pairing slot.
+                session.watchdogJob = watchdogScope.launch {
+                    delay(SESSION_EXPIRY_MILLIS)
+                    removeSessionIfCurrent(device.id, session)?.let { expired ->
+                        Log.d(TAG, "Reaping abandoned pairing session")
+                        expired.close()
+                    }
+                }
                 try {
                     Log.d(TAG, "Sending pairing request")
                     session.output.writeFrame(outer(pairingRequest()))
@@ -223,7 +250,11 @@ class GoogleTvPairingManager(
         val input = socket.inputStream
         val output = socket.outputStream
 
+        /** Expiry timer for this session; cancelled whenever the session is closed. */
+        var watchdogJob: Job? = null
+
         override fun close() {
+            watchdogJob?.cancel()
             runCatching { socket.close() }
         }
     }
@@ -231,6 +262,8 @@ class GoogleTvPairingManager(
     companion object {
         private const val TAG = "RGRemoteGooglePair"
         private const val PAIRING_PORT = 6467
+        private const val PAIRING_CONNECT_TIMEOUT_MILLIS = 3_000
+        private const val SESSION_EXPIRY_MILLIS = 60_000L
         private const val PROTOCOL_VERSION = 2L
         private const val SERVICE_NAME = "atvremote"
         private const val CLIENT_NAME = "RGRemote"

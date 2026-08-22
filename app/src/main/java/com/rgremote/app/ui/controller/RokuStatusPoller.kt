@@ -1,6 +1,7 @@
 package com.rgremote.app.ui.controller
 
 import com.rgremote.app.data.registry.DeviceRegistry
+import com.rgremote.app.discovery.canonicalRokuIdentity
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RokuDeviceInfo
@@ -19,16 +20,44 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Authoritative writer for the global [com.rgremote.app.ui.ConnectionStatus].
+ *
+ * Every write is scoped to the device the operation belongs to: results are
+ * discarded when the user has switched away from that device since the
+ * operation started, preventing cross-device status corruption.
+ */
+class DeviceStatusWriter(
+    private val getState: () -> RGRemoteUiState,
+    private val updateState: ((RGRemoteUiState) -> RGRemoteUiState) -> Unit
+) {
+    fun writeForDevice(deviceId: String, transform: (RGRemoteUiState) -> RGRemoteUiState) {
+        updateState { state ->
+            val stillSelected = state.selectedDeviceId == deviceId ||
+                (
+                    state.selectedDeviceId == null &&
+                        getState().selectedDeviceId == deviceId
+                    )
+            if (stillSelected) transform(state) else state
+        }
+    }
+}
 
 class RokuStatusPoller(
     private val scope: CoroutineScope,
     private val registry: DeviceRegistry,
     private val rokuConnection: RokuConnectionCoordinator,
+    private val statusWriter: DeviceStatusWriter,
     private val getState: () -> RGRemoteUiState,
     private val updateState: ((RGRemoteUiState) -> RGRemoteUiState) -> Unit
 ) {
     private var pollingJob: Job? = null
     private val statusMutex = Mutex()
+    private val inFlightRefreshDeviceIds: MutableSet<String> =
+        Collections.newSetFromMap(ConcurrentHashMap())
 
     fun startPolling() {
         pollingJob?.cancel()
@@ -68,34 +97,26 @@ class RokuStatusPoller(
     private suspend fun executeStatusProbe(device: RegisteredDevice): Result<RokuDeviceInfo> {
         return rokuConnection.probeDeviceInfo(device)
             .onSuccess { info ->
-                val resolved = rokuConnection.resolveDevice(device)
+                val resolved = resolveFreshRow(device, info)
                 registry.markCommandSuccess(resolved)
                 updateRokuControlAvailability(resolved.id, info)
                 updateRokuPowerMode(resolved.id, info.powerMode)
                 rokuConnection.queryActiveApp(resolved)
                     .onSuccess { app ->
-                        updateState { state ->
-                            if (state.selectedDeviceId == resolved.id) {
-                                state.copy(
-                                    activeApp = app,
-                                    connectionStatus = ConnectionStatus.ONLINE,
-                                    diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, app?.name)
-                                )
-                            } else {
-                                state
-                            }
+                        statusWriter.writeForDevice(resolved.id) { state ->
+                            state.copy(
+                                activeApp = app,
+                                connectionStatus = ConnectionStatus.ONLINE,
+                                diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, app?.name)
+                            )
                         }
                     }
                     .onFailure {
-                        updateState { state ->
-                            if (state.selectedDeviceId == resolved.id) {
-                                state.copy(
-                                    connectionStatus = ConnectionStatus.ONLINE,
-                                    diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, activeAppName = null)
-                                )
-                            } else {
-                                state
-                            }
+                        statusWriter.writeForDevice(resolved.id) { state ->
+                            state.copy(
+                                connectionStatus = ConnectionStatus.ONLINE,
+                                diagnosticMessage = rokuConnectedDiagnostic(info.powerMode, activeAppName = null)
+                            )
                         }
                     }
             }
@@ -104,11 +125,28 @@ class RokuStatusPoller(
             }
     }
 
+    /**
+     * Resolves the registry row for [device] after a successful identity probe: the probe
+     * may have promoted a manual-keyed device to its serial identity, invalidating the
+     * original id, so fall back to the serial-keyed row when the original row is gone.
+     */
+    private suspend fun resolveFreshRow(device: RegisteredDevice, info: RokuDeviceInfo): RegisteredDevice {
+        val byOriginalId = rokuConnection.resolveDevice(device)
+        if (registry.getDevice(byOriginalId.id) != null) return byOriginalId
+        val serial = info.serialNumber?.trim()?.takeIf { it.isNotEmpty() } ?: return byOriginalId
+        val identity = canonicalRokuIdentity(
+            serialNumber = serial,
+            ipAddress = byOriginalId.ipAddress,
+            port = byOriginalId.port,
+        )
+        return registry.getDevice(identity.id) ?: byOriginalId
+    }
+
     suspend fun pollRokuStatus(device: RegisteredDevice) {
         statusMutex.withLock {
             executeStatusProbe(device).onFailure { error ->
-                updateState {
-                    it.copy(
+                statusWriter.writeForDevice(device.id) { state ->
+                    state.copy(
                         connectionStatus = ConnectionStatus.OFFLINE,
                         diagnosticMessage = if (error is RokuNetworkAccessException) {
                             error.message
@@ -122,17 +160,25 @@ class RokuStatusPoller(
     }
 
     suspend fun refreshRokuStatus(roku: RegisteredDevice) {
-        statusMutex.withLock {
-            updateState(withStatus(ConnectionStatus.CHECKING))
-            updateState(withDiagnostic("Checking Roku ECP..."))
-            executeStatusProbe(roku)
-                .onSuccess {
-                    updateState(withStatus(ConnectionStatus.ONLINE))
-                }
-                .onFailure { error ->
-                    updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
-                    updateState(withDiagnostic("Roku ECP check failed: ${error.displayMessage()}"))
-                }
+        if (!inFlightRefreshDeviceIds.add(roku.id)) return
+        try {
+            statusMutex.withLock {
+                statusWriter.writeForDevice(roku.id, withStatus(ConnectionStatus.CHECKING))
+                statusWriter.writeForDevice(roku.id, withDiagnostic("Checking Roku ECP..."))
+                executeStatusProbe(roku)
+                    .onSuccess {
+                        statusWriter.writeForDevice(roku.id, withStatus(ConnectionStatus.ONLINE))
+                    }
+                    .onFailure { error ->
+                        statusWriter.writeForDevice(roku.id, withStatus(ConnectionStatus.CONNECTION_FAILED))
+                        statusWriter.writeForDevice(
+                            roku.id,
+                            withDiagnostic("Roku ECP check failed: ${error.displayMessage()}")
+                        )
+                    }
+            }
+        } finally {
+            inFlightRefreshDeviceIds.remove(roku.id)
         }
     }
 

@@ -5,6 +5,8 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.VolumeCommand
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.net.SocketTimeoutException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,11 +28,33 @@ private fun negotiationScript(): ByteArrayInputStream =
         serverRemoteStart(),
     )
 
-private fun framed(vararg payloads: ByteArray): ByteArrayInputStream {
-    val bytes = payloads.fold(byteArrayOf()) { acc, payload ->
+private fun framed(vararg payloads: ByteArray): ByteArrayInputStream =
+    ByteArrayInputStream(framedBytes(*payloads))
+
+private fun framedBytes(vararg payloads: ByteArray): ByteArray =
+    payloads.fold(byteArrayOf()) { acc, payload ->
         acc + ProtoWire.frame(payload)
     }
-    return ByteArrayInputStream(bytes)
+
+/**
+ * Serves [script] byte-exactly, then throws [SocketTimeoutException] on every
+ * further read, simulating the drain window elapsing on a quiet TLS link.
+ */
+private class DrainWindowTransport(script: ByteArray) : GoogleTvRemoteTransport {
+    override val input: InputStream = object : InputStream() {
+        private var index = 0
+
+        override fun read(): Int =
+            if (index < script.size) script[index++].toInt() and 0xFF
+            else throw SocketTimeoutException("drain window elapsed")
+
+        override fun available(): Int = script.size - index
+    }
+    override val output = ByteArrayOutputStream()
+
+    override fun pendingBytes(): Int = input.available()
+
+    override fun withDrainReadTimeout(block: () -> Unit) = block()
 }
 
 private fun containsKeyCode(output: ByteArray, keyCode: Long): Boolean =
@@ -147,6 +171,58 @@ class GoogleTvRemoteSessionTest {
 
         assertTrue(error is java.io.IOException)
         assertTrue(error?.message?.contains("feature ${GoogleTvRemoteProtocol.FEATURE_VOLUME}") == true)
+    }
+
+    @Test
+    fun send_surfacesRemoteErrorAfterNegotiation() {
+        val session = testSession(
+            input = framed(
+                serverRemoteConfigure(GoogleTvRemoteProtocol.FEATURE_MASK),
+                serverRemoteSetActive(),
+                serverRemoteStart(),
+                serverRemoteError(),
+            ),
+            output = ByteArrayOutputStream(),
+        )
+
+        val error = runCatching { session.send(RemoteCommand.Home) }.exceptionOrNull()
+
+        assertTrue(error is GoogleTvRemoteServerException)
+        assertTrue(error is java.io.IOException)
+        assertTrue(error?.message?.contains("Remote v2 error") == true)
+    }
+
+    @Test
+    fun send_reportsDesyncWhenFrameStraddlesDrainWindow() {
+        // Truncated frame: size header + partial payload, then the drain window expires.
+        val truncatedPing = ProtoWire.frame(serverRemotePingRequest(9)).copyOfRange(0, 3)
+        val script = framedBytes(
+            serverRemoteConfigure(GoogleTvRemoteProtocol.FEATURE_MASK),
+            serverRemoteSetActive(),
+            serverRemoteStart(),
+        ) + truncatedPing
+        val session = GoogleTvRemoteV2Session(DrainWindowTransport(script))
+
+        val error = runCatching { session.send(RemoteCommand.Home) }.exceptionOrNull()
+
+        assertTrue(error is GoogleTvRemoteStreamDesyncException)
+        assertTrue(error is java.io.IOException)
+    }
+
+    @Test
+    fun send_treatsQuietDrainTimeoutAsClean() {
+        val transport = DrainWindowTransport(
+            framedBytes(
+                serverRemoteConfigure(GoogleTvRemoteProtocol.FEATURE_MASK),
+                serverRemoteSetActive(),
+                serverRemoteStart(),
+            ),
+        )
+        val session = GoogleTvRemoteV2Session(transport)
+
+        session.send(RemoteCommand.Home)
+
+        assertTrue(containsKeyCode(transport.output.toByteArray(), GoogleTvRemoteProtocol.KEYCODE_HOME))
     }
 
     @Test

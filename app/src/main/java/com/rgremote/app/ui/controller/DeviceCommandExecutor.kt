@@ -26,8 +26,8 @@ class DeviceCommandExecutor(
     private val registry: DeviceRegistry,
     private val rokuConnection: RokuConnectionCoordinator,
     private val googleTvAdapter: RemoteAdapter,
+    private val statusWriter: DeviceStatusWriter,
     private val getState: () -> RGRemoteUiState,
-    private val updateState: ((RGRemoteUiState) -> RGRemoteUiState) -> Unit,
     private val onCommandSuccess: suspend (RegisteredDevice, RemoteCommand) -> Unit,
     private val feedback: CommandFeedbackController,
 ) {
@@ -80,7 +80,7 @@ class DeviceCommandExecutor(
     ): Result<Unit> {
         val controls = getState().rokuControlsByDeviceId[device.id] ?: RokuControlAvailability()
         if (device.type == DeviceType.ROKU_TV && !controls.supports(command)) {
-            updateState(withStatus(ConnectionStatus.WAKE_UNAVAILABLE))
+            statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.WAKE_UNAVAILABLE))
             if (showFeedback) {
                 feedback.show("${command.label()} is not supported by ${device.friendlyName}")
             }
@@ -94,7 +94,7 @@ class DeviceCommandExecutor(
             .onSuccess {
                 registry.markCommandSuccess(device)
                 if (device.type == DeviceType.ROKU_TV) {
-                    updateState(withStatus(ConnectionStatus.ONLINE))
+                    statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.ONLINE))
                 }
                 if (showFeedback) {
                     feedback.show("Sent ${command.label()} to ${device.friendlyName}")
@@ -103,14 +103,14 @@ class DeviceCommandExecutor(
             .onFailure { error ->
                 registry.markCommandFailure(device)
                 if (command == RemoteCommand.PowerOn) {
-                    updateState(withStatus(ConnectionStatus.WAKE_UNAVAILABLE))
+                    statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.WAKE_UNAVAILABLE))
                     if (showFeedback) {
                         val powerMode = getState().rokuPowerModeByDeviceId[device.id]
                         val hint = RokuPowerMode.wakeHint(powerMode)
                         feedback.show(hint ?: "${device.friendlyName}: ${error.displayMessage()}")
                     }
                 } else {
-                    updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
+                    statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.CONNECTION_FAILED))
                     if (showFeedback) {
                         feedback.show("${device.friendlyName}: ${error.displayMessage()}")
                     }

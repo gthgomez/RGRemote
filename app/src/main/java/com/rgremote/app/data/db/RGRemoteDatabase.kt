@@ -27,7 +27,6 @@ abstract class RGRemoteDatabase : RoomDatabase() {
                     "rgremote.db"
                 )
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
-                    .fallbackToDestructiveMigration(false)
                     .build()
                     .also { instance = it }
             }

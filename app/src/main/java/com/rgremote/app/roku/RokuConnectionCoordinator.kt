@@ -2,6 +2,7 @@ package com.rgremote.app.roku
 
 import com.rgremote.app.data.registry.DeviceRegistry
 import com.rgremote.app.discovery.DiscoveryService
+import com.rgremote.app.discovery.canonicalRokuIdentity
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
@@ -13,6 +14,8 @@ class RokuConnectionCoordinator(
     private val rokuAdapter: RokuEcpGateway,
     private val rescan: suspend () -> Int,
     private val lookup: suspend (String) -> RegisteredDevice?,
+    private val rekey: suspend (staleDeviceId: String, replacement: RegisteredDevice) -> Unit =
+        { _, _ -> },
     private val retryDelaysMillis: List<Long> = DEFAULT_RETRY_DELAYS,
 ) {
     constructor(
@@ -23,6 +26,9 @@ class RokuConnectionCoordinator(
         rokuAdapter = rokuAdapter,
         rescan = { discoveryService.scanRoku() },
         lookup = { id -> registry.getDevice(id) },
+        rekey = { staleDeviceId, replacement ->
+            registry.rekeyDevice(staleDeviceId, replacement)
+        },
     )
 
     suspend fun resolveDevice(device: RegisteredDevice): RegisteredDevice =
@@ -33,13 +39,20 @@ class RokuConnectionCoordinator(
         val probe = retryEcp(maxAttempts = DEFAULT_PROBE_ATTEMPTS) {
             rokuAdapter.queryDeviceInfo(target)
         }
-        if (probe.isSuccess) return probe
+        if (probe.isSuccess) {
+            promoteToSerialIdentity(target, probe.getOrThrow())
+            return probe
+        }
         if (!probe.exceptionOrNull().isRecoverableByRescan()) return probe
 
         val rescanned = rescanAndResolve(target) ?: return probe
-        return retryEcp(maxAttempts = RECOVERY_PROBE_ATTEMPTS) {
+        val recovered = retryEcp(maxAttempts = RECOVERY_PROBE_ATTEMPTS) {
             rokuAdapter.queryDeviceInfo(rescanned)
         }
+        if (recovered.isSuccess) {
+            promoteToSerialIdentity(rescanned, recovered.getOrThrow())
+        }
+        return recovered
     }
 
     suspend fun queryActiveApp(device: RegisteredDevice) =
@@ -66,14 +79,42 @@ class RokuConnectionCoordinator(
         command: RemoteCommand,
     ): Result<Unit> {
         var target = resolveDevice(device)
-        var result = retrySend(target, command)
+        var result = retrySend(target, command, maxAttempts = sendAttemptsFor(command))
         if (result.isSuccess) return result
         if (!result.exceptionOrNull().isRecoverableByRescan()) return result
 
+        // Connection recovery (rescan + registry refresh) is allowed for every command;
+        // only the command POST itself must stay single-shot for non-idempotent ones.
         val rescanned = rescanAndResolve(target) ?: return result
         target = rescanned
+        if (!command.isRetrySafe()) return result
         return retrySend(target, command, maxAttempts = RECOVERY_SEND_ATTEMPTS)
     }
+
+    /**
+     * Manual-keyed devices are persisted under their canonical serial identity as soon as
+     * an identity probe reveals the serial number, so later DHCP changes recover by serial.
+     */
+    private suspend fun promoteToSerialIdentity(source: RegisteredDevice, info: RokuDeviceInfo) {
+        val serial = info.serialNumber?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        val identity = canonicalRokuIdentity(
+            serialNumber = serial,
+            ipAddress = source.ipAddress,
+            port = source.port,
+        )
+        if (identity.id == source.id) return
+        rekey(source.id, source.copy(id = identity.id, uniqueId = identity.uniqueId))
+    }
+
+    /** Commands whose delivery converges to the same device state when repeated. */
+    private fun RemoteCommand.isRetrySafe(): Boolean = when (this) {
+        is RemoteCommand.SetInput -> true
+        RemoteCommand.PowerOn, RemoteCommand.PowerOff -> true
+        else -> false
+    }
+
+    private fun sendAttemptsFor(command: RemoteCommand): Int =
+        if (command.isRetrySafe()) DEFAULT_SEND_ATTEMPTS else SINGLE_SEND_ATTEMPT
 
     private suspend fun rescanAndResolve(device: RegisteredDevice): RegisteredDevice? {
         runCatching { rescan() }
@@ -121,6 +162,7 @@ class RokuConnectionCoordinator(
         private val DEFAULT_RETRY_DELAYS = listOf(200L, 500L)
         private const val DEFAULT_PROBE_ATTEMPTS = 3
         private const val DEFAULT_SEND_ATTEMPTS = 3
+        private const val SINGLE_SEND_ATTEMPT = 1
         private const val RECOVERY_PROBE_ATTEMPTS = 2
         private const val RECOVERY_SEND_ATTEMPTS = 2
     }

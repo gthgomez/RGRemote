@@ -27,6 +27,7 @@ import com.rgremote.app.roku.RokuEcpClient
 import com.rgremote.app.roku.RokuConnectionCoordinator
 import com.rgremote.app.roku.displayMessage
 import com.rgremote.app.ui.controller.DeviceCommandExecutor
+import com.rgremote.app.ui.controller.DeviceStatusWriter
 import com.rgremote.app.ui.controller.DiscoveryCoordinator
 import com.rgremote.app.ui.controller.PairingOrchestrator
 import com.rgremote.app.ui.controller.RokuStatusPoller
@@ -147,13 +148,18 @@ class RGRemoteViewModel(
     )
 
     // Extracted Domain Controllers
+    private val statusWriter = DeviceStatusWriter(
+        getState = { uiState.value },
+        updateState = { action -> localState.update(action) }
+    )
+
     private val commandExecutor = DeviceCommandExecutor(
         scope = viewModelScope,
         registry = registry,
         rokuConnection = rokuConnection,
         googleTvAdapter = googleTvAdapter,
+        statusWriter = statusWriter,
         getState = { uiState.value },
-        updateState = { action -> localState.update(action) },
         onCommandSuccess = { device, command -> handleCommandSuccess(device, command) },
         feedback = feedback,
     )
@@ -179,6 +185,7 @@ class RGRemoteViewModel(
         scope = viewModelScope,
         registry = registry,
         rokuConnection = rokuConnection,
+        statusWriter = statusWriter,
         getState = { uiState.value },
         updateState = { action -> localState.update(action) }
     )
@@ -226,6 +233,14 @@ class RGRemoteViewModel(
 
     init {
         viewModelScope.launch { registry.dedupeStoredDevices() }
+        viewModelScope.launch {
+            val persistedId = uiPreferences.selectedDeviceId ?: return@launch
+            val devices = registry.devices.first()
+            if (devices.none { it.id == persistedId }) {
+                val canonical = devices.canonicalDevicesPerType()
+                uiPreferences.setSelectedDeviceId(canonical.firstOrNull()?.id)
+            }
+        }
         discoveryService.saveAsync = { device ->
             viewModelScope.launch {
                 registry.upsertDiscoveredDevice(device)
@@ -250,12 +265,28 @@ class RGRemoteViewModel(
     }
 
     private fun handleCommandSuccess(device: RegisteredDevice, command: RemoteCommand) {
+        if (!command.changesDeviceState()) return
         if (device.type == DeviceType.ROKU_TV) {
             viewModelScope.launch { rokuStatusPoller.refreshRokuStatus(device) }
         } else {
             refreshStatus()
         }
     }
+
+    private fun RemoteCommand.changesDeviceState(): Boolean =
+        when (this) {
+            is RemoteCommand.Dpad,
+            RemoteCommand.Select,
+            RemoteCommand.Home,
+            RemoteCommand.Back,
+            RemoteCommand.PlayPause,
+            is RemoteCommand.Volume -> false
+            RemoteCommand.PowerOn,
+            RemoteCommand.PowerOff,
+            RemoteCommand.PowerToggle,
+            is RemoteCommand.LaunchApp,
+            is RemoteCommand.SetInput -> true
+        }
 
     fun setShowConnectionGuide(show: Boolean) {
         uiPreferences.setShowConnectionGuide(show)

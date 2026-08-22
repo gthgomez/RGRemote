@@ -2,6 +2,8 @@ package com.rgremote.app.roku
 
 import com.rgremote.app.domain.ActiveApp
 import com.rgremote.app.domain.DeviceType
+import com.rgremote.app.domain.DpadDirection
+import com.rgremote.app.domain.HdmiPort
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
@@ -14,7 +16,7 @@ import org.junit.Test
 
 class RokuConnectionCoordinatorTest {
     @Test
-    fun sendWithRecovery_rescansAfterInitialFailures() = runBlocking {
+    fun sendWithRecovery_retrySafeCommandResendsAfterRescan() = runBlocking {
         var sendAttempts = 0
         var scanCalls = 0
         var device = testDevice(ipAddress = "192.168.1.10")
@@ -48,11 +50,123 @@ class RokuConnectionCoordinatorTest {
             retryDelaysMillis = listOf(1L, 1L),
         )
 
-        val result = coordinator.sendWithRecovery(device, RemoteCommand.Home)
+        val result = coordinator.sendWithRecovery(
+            device,
+            RemoteCommand.SetInput(HdmiPort.HDMI2)
+        )
 
         assertTrue(result.isSuccess)
         assertTrue(scanCalls >= 1)
-        assertEquals("192.168.1.11", device.ipAddress)
+        assertEquals(4, sendAttempts)
+    }
+
+    @Test
+    fun sendWithRecovery_nonIdempotentCommandSendsExactlyOnce() = runBlocking {
+        var sendAttempts = 0
+        var scanCalls = 0
+        val device = testDevice()
+        val gateway = object : RokuEcpGateway {
+            override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> {
+                sendAttempts++
+                return Result.failure(IOException("timeout"))
+            }
+
+            override suspend fun queryDeviceInfo(device: RegisteredDevice): RokuDeviceInfo =
+                throw UnsupportedOperationException()
+
+            override suspend fun queryActiveApp(device: RegisteredDevice): ActiveApp? =
+                throw UnsupportedOperationException()
+
+            override suspend fun queryApps(device: RegisteredDevice): List<RokuApp> =
+                throw UnsupportedOperationException()
+        }
+        val coordinator = RokuConnectionCoordinator(
+            rokuAdapter = gateway,
+            rescan = {
+                scanCalls++
+                1
+            },
+            lookup = { _ -> device },
+            retryDelaysMillis = listOf(1L, 1L),
+        )
+
+        val result = coordinator.sendWithRecovery(
+            device,
+            RemoteCommand.Dpad(DpadDirection.UP)
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals(1, sendAttempts)
+        assertEquals(1, scanCalls)
+    }
+
+    @Test
+    fun probeDeviceInfo_promotesManualDeviceToSerialIdentity() = runBlocking {
+        var rekeyedFrom: String? = null
+        var rekeyedTo: RegisteredDevice? = null
+        val device = testDevice(id = "roku:manual:192.168.1.50:8060")
+            .copy(uniqueId = "manual:192.168.1.50:8060")
+        val gateway = object : RokuEcpGateway {
+            override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> =
+                Result.failure(UnsupportedOperationException())
+
+            override suspend fun queryDeviceInfo(device: RegisteredDevice): RokuDeviceInfo =
+                RokuDeviceInfo(
+                    friendlyName = "Living Room",
+                    serialNumber = "ABC123",
+                    powerMode = "DisplayOff"
+                )
+
+            override suspend fun queryActiveApp(device: RegisteredDevice): ActiveApp? = null
+
+            override suspend fun queryApps(device: RegisteredDevice): List<RokuApp> = emptyList()
+        }
+        val coordinator = RokuConnectionCoordinator(
+            rokuAdapter = gateway,
+            rescan = { 0 },
+            lookup = { _ -> device },
+            rekey = { staleDeviceId, replacement ->
+                rekeyedFrom = staleDeviceId
+                rekeyedTo = replacement
+            },
+            retryDelaysMillis = listOf(1L),
+        )
+
+        val result = coordinator.probeDeviceInfo(device)
+
+        assertTrue(result.isSuccess)
+        assertEquals("roku:manual:192.168.1.50:8060", rekeyedFrom)
+        assertEquals("roku:abc123", rekeyedTo?.id)
+        assertEquals("ABC123", rekeyedTo?.uniqueId)
+    }
+
+    @Test
+    fun probeDeviceInfo_serialKeyedDeviceIsNotRekeyed() = runBlocking {
+        var rekeyInvocations = 0
+        val device = testDevice(id = "roku:abc123").copy(uniqueId = "ABC123")
+        val gateway = object : RokuEcpGateway {
+            override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> =
+                Result.failure(UnsupportedOperationException())
+
+            override suspend fun queryDeviceInfo(device: RegisteredDevice): RokuDeviceInfo =
+                RokuDeviceInfo(friendlyName = null, serialNumber = "ABC123", powerMode = null)
+
+            override suspend fun queryActiveApp(device: RegisteredDevice): ActiveApp? = null
+
+            override suspend fun queryApps(device: RegisteredDevice): List<RokuApp> = emptyList()
+        }
+        val coordinator = RokuConnectionCoordinator(
+            rokuAdapter = gateway,
+            rescan = { 0 },
+            lookup = { _ -> device },
+            rekey = { _, _ -> rekeyInvocations++ },
+            retryDelaysMillis = listOf(1L),
+        )
+
+        val result = coordinator.probeDeviceInfo(device)
+
+        assertTrue(result.isSuccess)
+        assertEquals(0, rekeyInvocations)
     }
 
     @Test
@@ -128,9 +242,9 @@ class RokuConnectionCoordinatorTest {
         assertEquals(0, scanCalls)
     }
 
-    private fun testDevice(ipAddress: String = "192.168.1.50"): RegisteredDevice =
+    private fun testDevice(id: String = "roku:test", ipAddress: String = "192.168.1.50"): RegisteredDevice =
         RegisteredDevice(
-            id = "roku:test",
+            id = id,
             type = DeviceType.ROKU_TV,
             ipAddress = ipAddress,
             port = 8060,

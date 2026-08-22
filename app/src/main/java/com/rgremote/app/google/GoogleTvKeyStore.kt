@@ -3,6 +3,7 @@ package com.rgremote.app.google
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
+import android.util.Log
 import java.io.ByteArrayInputStream
 import java.math.BigInteger
 import java.net.Socket
@@ -15,6 +16,7 @@ import java.security.SecureRandom
 import java.security.cert.CertificateException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.security.interfaces.RSAPublicKey
 import java.util.Base64
 import java.util.Date
 import javax.net.ssl.KeyManager
@@ -43,8 +45,13 @@ class GoogleTvKeyStore(context: Context) {
         )
     }
 
-    fun pairingSslContext(alias: String): SSLContext =
-        sslContext(alias = alias, trustManagers = arrayOf(TRUST_ALL))
+    fun pairingSslContext(alias: String): SSLContext {
+        // Trust-on-first-use: the TV certificate is unknown before pairing, so identity
+        // cannot be verified here. It is enforced post-pairing via SHA-256 pinning in
+        // [pairedSslContext]; this stage only rejects structurally unusable server keys.
+        Log.w(TAG, "Pairing TLS defers server identity validation to post-pairing certificate pinning")
+        return sslContext(alias = alias, trustManagers = arrayOf(TOFU_TRUST_MANAGER))
+    }
 
     fun pairedSslContext(alias: String, serverCertificateSha256: String): SSLContext =
         sslContext(alias = alias, trustManagers = arrayOf(pinnedServerTrustManager(serverCertificateSha256)))
@@ -179,15 +186,30 @@ class GoogleTvKeyStore(context: Context) {
     )
 
     companion object {
+        private const val TAG = "RGRemoteGooglePair"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+        private const val MIN_SERVER_RSA_BITS = 2048
         private const val ONE_DAY_MILLIS = 24L * 60L * 60L * 1_000L
         private const val TEN_YEARS_MILLIS = 10L * 365L * ONE_DAY_MILLIS
 
-        private val TRUST_ALL = object : X509TrustManager {
+        private val TOFU_TRUST_MANAGER: TrustManager = object : X509TrustManager {
             override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
+                // TOFU protocol stage: identity is deferred to the post-pairing pin check,
+                // but key material must still be strong enough to pin safely.
+                val certificate = chain?.firstOrNull()
+                    ?: throw CertificateException("Google TV did not present a server certificate during pairing")
+                val publicKey = certificate.publicKey as? RSAPublicKey
+                    ?: throw CertificateException("Google TV pairing requires an RSA server certificate")
+                val bits = publicKey.modulus.bitLength()
+                if (bits < MIN_SERVER_RSA_BITS) {
+                    throw CertificateException("Google TV server RSA key is $bits bits; minimum is $MIN_SERVER_RSA_BITS")
+                }
+            }
+
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
-        } as TrustManager
+        }
     }
 }
 
