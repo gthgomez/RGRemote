@@ -318,7 +318,7 @@ internal fun HeaderOverflowMenu(
                 onDismiss()
                 onRefreshStatus()
             },
-            enabled = selected?.type == DeviceType.ROKU_TV,
+            enabled = selected != null,
             leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
         )
         DropdownMenuItem(
@@ -369,9 +369,9 @@ internal fun EcosystemSegmentBar(
     onSelect: (String) -> Unit,
     onGoogleSelect: (RegisteredDevice) -> Unit,
 ) {
-    val roku = state.rokuDevice
-    val google = state.googleTvDevice
-    if (roku == null && google == null) {
+    val rokus = state.rokuDevices.ifEmpty { listOfNotNull(state.rokuDevice) }
+    val googles = state.googleDevices.ifEmpty { listOfNotNull(state.googleTvDevice) }
+    if (rokus.isEmpty() && googles.isEmpty()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -395,27 +395,136 @@ internal fun EcosystemSegmentBar(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        roku?.let { device ->
-            EcosystemSegment(
+        if (rokus.isNotEmpty()) {
+            SegmentGroup(
                 modifier = Modifier.weight(1f),
                 label = "Roku",
-                selected = selected?.id == device.id,
+                devices = rokus,
+                selectedId = selected?.id,
                 accent = RokuPrimary,
-                enabled = true,
-                onClick = { onSelect(device.id) }
+                showAttentionDot = false,
+                onSelectDevice = { device -> onSelect(device.id) }
             )
         }
-        google?.let { device ->
-            val needsAttention = !state.pairedDeviceIds.contains(device.id) || device.hdmiPortMapping == null
-            EcosystemSegment(
+        if (googles.isNotEmpty()) {
+            val primaryGoogle = googles.first()
+            val needsAttention =
+                !state.pairedDeviceIds.contains(primaryGoogle.id) || primaryGoogle.hdmiPortMapping == null
+            SegmentGroup(
                 modifier = Modifier.weight(1f),
                 label = "Google TV",
-                selected = selected?.id == device.id,
+                devices = googles,
+                selectedId = selected?.id,
                 accent = GooglePrimary,
-                enabled = true,
-                showAttentionDot = needsAttention && selected?.id != device.id,
-                onClick = { onGoogleSelect(device) }
+                showAttentionDot = needsAttention && selected?.id != primaryGoogle.id,
+                onSelectDevice = onGoogleSelect
             )
+        }
+    }
+}
+
+@Composable
+private fun SegmentGroup(
+    modifier: Modifier,
+    label: String,
+    devices: List<RegisteredDevice>,
+    selectedId: String?,
+    accent: Color,
+    showAttentionDot: Boolean,
+    onSelectDevice: (RegisteredDevice) -> Unit,
+) {
+    val primary = devices.first()
+    var overflowExpanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        EcosystemSegment(
+            modifier = Modifier.weight(1f),
+            label = label,
+            selected = selectedId == primary.id,
+            accent = accent,
+            enabled = true,
+            showAttentionDot = showAttentionDot,
+            onClick = { onSelectDevice(primary) }
+        )
+        if (devices.size > 1) {
+            Box {
+                Surface(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable { overflowExpanded = true },
+                    shape = CircleShape,
+                    color = NeoCard.copy(alpha = 0.48f),
+                    border = BorderStroke(1.dp, accent.copy(alpha = 0.14f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "More $label devices",
+                            tint = accent.copy(alpha = 0.9f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = devices.size.toString(),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 4.dp, end = 8.dp)
+                                .clip(CircleShape)
+                                .background(accent)
+                                .padding(horizontal = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+                    }
+                }
+                DropdownMenu(
+                    expanded = overflowExpanded,
+                    onDismissRequest = { overflowExpanded = false }
+                ) {
+                    devices.forEach { device ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = device.friendlyName,
+                                    color = if (device.id == selectedId) accent else PrimaryText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            onClick = {
+                                overflowExpanded = false
+                                onSelectDevice(device)
+                            },
+                            leadingIcon = {
+                                Box(
+                                    Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (device.isOnline) SuccessGreen else SecondaryText.copy(alpha = 0.38f)
+                                        )
+                                )
+                            },
+                            trailingIcon = if (device.id == selectedId) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = accent,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else {
+                                null
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }

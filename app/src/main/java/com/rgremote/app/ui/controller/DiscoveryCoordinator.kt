@@ -6,7 +6,7 @@ import com.rgremote.app.discovery.DiscoveryService
 import com.rgremote.app.discovery.RokuSsdpListener
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.RegisteredDevice
-import com.rgremote.app.roku.displayMessage
+import com.rgremote.app.roku.diagnosticDetail
 import com.rgremote.app.ui.ConnectionStatus
 import com.rgremote.app.ui.RGRemoteUiState
 import com.rgremote.app.ui.withDiagnostic
@@ -62,13 +62,13 @@ class DiscoveryCoordinator(
     fun scan() {
         scope.launch {
             updateState(withStatus(ConnectionStatus.CHECKING))
-            updateState(withDiagnostic("Scanning LAN for Roku devices"))
+            updateState(withDiagnostic("Searching your network for Roku TVs"))
             updateState { it.copy(isScanning = true) }
             val scanResult = runCatching { discoveryService.scanRoku() }
             val failed = scanResult.isFailure
             scanResult.onFailure { error ->
                 updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
-                updateState(withDiagnostic("Roku scan failed: ${error.displayMessage()}"))
+                updateState(withDiagnostic("Roku scan failed: ${error.diagnosticDetail()}"))
             }
             val count = scanResult.getOrDefault(0)
             if (!failed) {
@@ -87,9 +87,11 @@ class DiscoveryCoordinator(
                             else -> ConnectionStatus.OFFLINE
                         },
                         diagnosticMessage = when {
-                            count == 0 -> "No Roku SSDP replies received"
-                            discoveredRoku != null -> "Verifying Roku ECP on saved device..."
-                            else -> "Found $count Roku device(s) but none matched saved TV"
+                            count == 0 ->
+                                "No Roku TVs answered the scan. Check that your phone and TV " +
+                                    "are on the same Wi-Fi, then scan again."
+                            discoveredRoku != null -> "Found a Roku TV — checking your saved device"
+                            else -> "Found $count Roku device(s), but none matched your saved TV"
                         },
                     )
                 }
@@ -112,7 +114,7 @@ class DiscoveryCoordinator(
             .onSuccess { updateState { it.copy(googleDiscoveryRunning = true) } }
             .onFailure {
                 updateState(withStatus(ConnectionStatus.CONNECTION_FAILED))
-                updateState(withDiagnostic("Google TV discovery failed: ${it.message}"))
+                updateState(withDiagnostic("Google TV search failed: ${it.message}"))
             }
     }
 
@@ -123,9 +125,9 @@ class DiscoveryCoordinator(
             it.copy(
                 connectionStatus = ConnectionStatus.CHECKING,
                 diagnosticMessage = if (granted) {
-                    "Nearby Wi-Fi allowed; scanning LAN"
+                    "Nearby Wi-Fi allowed — searching for TVs"
                 } else {
-                    "Nearby Wi-Fi denied; discovery may be limited"
+                    "Nearby Wi-Fi permission denied — finding TVs may not work"
                 },
             )
         }

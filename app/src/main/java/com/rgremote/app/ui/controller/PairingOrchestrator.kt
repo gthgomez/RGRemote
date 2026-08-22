@@ -4,6 +4,7 @@ import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.google.GoogleTvPairingManager
 import com.rgremote.app.ui.ConnectionStatus
 import com.rgremote.app.ui.RGRemoteUiState
+import java.net.SocketTimeoutException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -42,7 +43,9 @@ class PairingOrchestrator(
                             state.copy(
                                 pairingSessionDeviceId = device.id,
                                 connectionStatus = ConnectionStatus.NOT_PAIRED,
-                                diagnosticMessage = "Enter the 6-character PIN shown on Google TV"
+                                diagnosticMessage = "Enter the 6-character PIN shown on Google TV",
+                                userFeedback = PAIRING_WINDOW_OPEN_MESSAGE,
+                                showFeedback = true,
                             )
                         }
                     }
@@ -93,11 +96,14 @@ class PairingOrchestrator(
                         }
                     }
                     .onFailure { error ->
+                        val expiredWindow = error.isPairingWindowExpired()
                         updateState { state ->
                             state.copy(
                                 pairingSessionDeviceId = null,
                                 connectionStatus = ConnectionStatus.CONNECTION_FAILED,
-                                diagnosticMessage = "Pairing failed: ${error.message}. Tap Start for a new code."
+                                diagnosticMessage = "Pairing failed: ${error.message}. Tap Start for a new code.",
+                                userFeedback = if (expiredWindow) PAIRING_WINDOW_EXPIRED_MESSAGE else null,
+                                showFeedback = expiredWindow,
                             )
                         }
                     }
@@ -105,5 +111,30 @@ class PairingOrchestrator(
                 updateState { it.copy(isPairing = false) }
             }
         }
+    }
+
+    /** Server-side sessions die after ~60s; these shapes mean the window is gone. */
+    private fun Throwable.isPairingWindowExpired(): Boolean {
+        if (this is SocketTimeoutException) return true
+        val description = message?.lowercase().orEmpty()
+        return PAIRING_WINDOW_EXPIRED_SHAPES.any { it in description }
+    }
+
+    companion object {
+        private const val PAIRING_WINDOW_OPEN_MESSAGE =
+            "Pairing window open — enter the code on your TV within a minute."
+        private const val PAIRING_WINDOW_EXPIRED_MESSAGE =
+            "The pairing window expired. Tap Start Pairing and enter the code promptly."
+        private val PAIRING_WINDOW_EXPIRED_SHAPES = listOf(
+            "start pairing before entering",
+            "pairing status was",
+            "timed out",
+            "timeout",
+            "connection reset",
+            "socket closed",
+            "connection aborted",
+            "connection closed",
+            "broken pipe",
+        )
     }
 }

@@ -93,17 +93,20 @@ class DeviceCommandExecutor(
         return result
             .onSuccess {
                 registry.markCommandSuccess(device)
-                if (device.type == DeviceType.ROKU_TV) {
-                    statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.ONLINE))
-                }
-                if (showFeedback) {
+                statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.ONLINE))
+                if (showFeedback && !command.isHighFrequency()) {
                     feedback.show("Sent ${command.label()} to ${device.friendlyName}")
                 }
             }
             .onFailure { error ->
                 registry.markCommandFailure(device)
                 if (command == RemoteCommand.PowerOn) {
-                    statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.WAKE_UNAVAILABLE))
+                    statusWriter.writeForDevice(device.id) { state ->
+                        state.copy(
+                            connectionStatus = ConnectionStatus.WAKE_UNAVAILABLE,
+                            diagnosticMessage = "Wake failed — this TV can't be woken over the network.",
+                        )
+                    }
                     if (showFeedback) {
                         val powerMode = getState().rokuPowerModeByDeviceId[device.id]
                         val hint = RokuPowerMode.wakeHint(powerMode)
@@ -117,6 +120,14 @@ class DeviceCommandExecutor(
                 }
             }
     }
+
+    /** Commands fired repeatedly during normal use; per-press success feedback would spam. */
+    private fun RemoteCommand.isHighFrequency(): Boolean =
+        when (this) {
+            is RemoteCommand.Dpad, is RemoteCommand.Volume -> true
+            RemoteCommand.Select, RemoteCommand.Home, RemoteCommand.Back, RemoteCommand.PlayPause -> true
+            else -> false
+        }
 
     private fun RemoteCommand.label(): String =
         when (this) {

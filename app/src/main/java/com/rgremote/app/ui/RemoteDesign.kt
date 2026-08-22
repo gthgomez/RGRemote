@@ -10,7 +10,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,9 +71,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +87,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -93,6 +100,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -107,6 +120,10 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
 import com.rgremote.app.domain.VolumeCommand
 import com.rgremote.app.roku.RokuPowerMode
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 internal val NeoBackground = Color(0xFF080B14)
 internal val NeoSurface = Color(0xFF111522)
@@ -180,6 +197,101 @@ internal fun rememberEcosystemStyle(deviceType: DeviceType?): EcosystemStyle =
         )
     }
 
+internal const val HoldRepeatInitialDelayMillis = 400L
+internal const val HoldRepeatIntervalMillis = 110L
+
+/**
+ * Press-and-hold auto-repeat gesture: fires [onPress] immediately on touch down,
+ * then repeats after [HoldRepeatInitialDelayMillis] every [HoldRepeatIntervalMillis]
+ * while held. The repeat job runs in a per-button rememberCoroutineScope owned by
+ * the caller's composition and is cancelled on release, cancellation (finger moved
+ * beyond slop out of bounds, or event stolen), or composition disposal.
+ *
+ * Emits Press/Release/Cancel into [interactionSource] so pressed-scale/glow visuals
+ * keyed on collectIsPressedAsState keep working. Consuming events in the Initial
+ * pass also prevents any underlying clickable from double-firing.
+ */
+@Composable
+internal fun Modifier.holdRepeatPress(
+    enabled: Boolean,
+    interactionSource: MutableInteractionSource?,
+    onPress: () -> Unit,
+): Modifier {
+    val scope = rememberCoroutineScope()
+    val currentOnPress by rememberUpdatedState(onPress)
+    var repeatJob by remember { mutableStateOf<Job?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            repeatJob?.cancel()
+            repeatJob = null
+        }
+    }
+
+    if (!enabled) return Modifier
+
+    return pointerInput(Unit) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+            down.consume()
+            val press = PressInteraction.Press(down.position)
+            interactionSource?.tryEmit(press)
+            currentOnPress()
+            repeatJob?.cancel()
+            repeatJob = scope.launch {
+                delay(HoldRepeatInitialDelayMillis)
+                while (isActive) {
+                    currentOnPress()
+                    delay(HoldRepeatIntervalMillis)
+                }
+            }
+            var releasedInside = false
+            try {
+                val slop = viewConfiguration.touchSlop
+                val hitArea = Rect(
+                    -slop,
+                    -slop,
+                    size.width + slop,
+                    size.height + slop
+                )
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    change.consume()
+                    if (change.changedToUp()) {
+                        releasedInside = hitArea.contains(change.position)
+                        break
+                    }
+                    if (!hitArea.contains(change.position)) break
+                }
+            } finally {
+                repeatJob?.cancel()
+                repeatJob = null
+                interactionSource?.tryEmit(
+                    if (releasedInside) PressInteraction.Release(press) else PressInteraction.Cancel(press)
+                )
+            }
+        }
+    }
+}
+
+/** Wraps a remote command action with a single light haptic tick, guarded by the host View's haptic setting. */
+@Composable
+internal fun rememberHapticTrigger(): (() -> Unit) -> () -> Unit {
+    val haptics = LocalHapticFeedback.current
+    val view = LocalView.current
+    return remember(haptics, view) {
+        { action ->
+            {
+                if (view.isHapticFeedbackEnabled) {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                action()
+            }
+        }
+    }
+}
+
 internal fun setupGuideNeeded(state: RGRemoteUiState): Boolean {
     if (!state.showConnectionGuide) return false
     return !isSetupComplete(state)
@@ -242,6 +354,7 @@ internal fun RoundIconButton(
     accent: Color,
     enabled: Boolean,
     size: Dp = 48.dp,
+    holdRepeat: Boolean = false,
     onClick: () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -250,6 +363,13 @@ internal fun RoundIconButton(
     IconButton(
         modifier = Modifier
             .size(size)
+            .then(
+                if (holdRepeat) {
+                    Modifier.holdRepeatPress(enabled, interaction, onClick)
+                } else {
+                    Modifier
+                }
+            )
             .scale(scale)
             .neoGlow(accent, if (enabled) 0.24f else 0f, radius = 16.dp)
             .clip(RoundedCornerShape(24.dp))

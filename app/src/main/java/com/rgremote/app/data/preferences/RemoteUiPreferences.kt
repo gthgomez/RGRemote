@@ -2,6 +2,7 @@ package com.rgremote.app.data.preferences
 
 import android.content.Context
 import androidx.core.content.edit
+import com.rgremote.app.ui.RemoteTab
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -21,6 +22,15 @@ class RemoteUiPreferences(context: Context) {
         prefs.edit { putString(KEY_SELECTED_DEVICE_ID, deviceId) }
     }
 
+    val selectedTab: RemoteTab?
+        get() = prefs.getString(KEY_SELECTED_TAB, null)?.let { name ->
+            RemoteTab.entries.firstOrNull { it.name == name }
+        }
+
+    fun setSelectedTab(tab: RemoteTab?) {
+        prefs.edit { putString(KEY_SELECTED_TAB, tab?.name) }
+    }
+
     fun setShowConnectionGuide(show: Boolean) {
         prefs.edit { putBoolean(KEY_SHOW_GUIDE, show) }
         _showConnectionGuide.value = show
@@ -36,5 +46,6 @@ class RemoteUiPreferences(context: Context) {
         private const val KEY_SHOW_GUIDE = "show_connection_guide"
         private const val KEY_SHOW_UTILITIES = "show_utilities_dock"
         private const val KEY_SELECTED_DEVICE_ID = "selected_device_id"
+        private const val KEY_SELECTED_TAB = "selected_tab"
     }
 }

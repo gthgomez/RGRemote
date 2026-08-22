@@ -71,7 +71,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -178,12 +177,9 @@ internal fun RemoteUtilitiesDock(
     onSwitchInput: (HdmiPort) -> Unit,
 ) {
     if (!state.showUtilitiesDock) return
-    val setupComplete = isSetupComplete(state)
-    var utilitiesExpanded by rememberSaveable(setupComplete) {
-        mutableStateOf(!setupComplete)
-    }
-    LaunchedEffect(setupComplete) {
-        if (setupComplete) utilitiesExpanded = false
+    val setupIncomplete = state.setupIncomplete
+    var utilitiesExpanded by rememberSaveable(setupIncomplete) {
+        mutableStateOf(setupIncomplete)
     }
     UtilitiesExpander(
         expanded = utilitiesExpanded,

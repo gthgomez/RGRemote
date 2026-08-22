@@ -11,6 +11,10 @@ import kotlinx.coroutines.launch
  *
  * Shows a transient user-facing message that auto-clears after [CLEAR_DELAY_MILLIS].
  * Passing null clears any active feedback immediately.
+ *
+ * Identical consecutive messages are deduped: rewriting the same text is an
+ * equality no-op in the state flow, so only one snackbar stays visible while
+ * the auto-clear timer restarts, giving the repeated message a fresh window.
  */
 class CommandFeedbackController(
     private val scope: CoroutineScope,
@@ -29,6 +33,9 @@ class CommandFeedbackController(
             updateState { it.copy(userFeedback = null, showFeedback = false) }
             return
         }
+        // No duplicate-check against a local mirror: writing an equal message is a
+        // no-op for the StateFlow-backed UI, so a repeat never stacks a snackbar;
+        // restarting the timer below is what keeps the message from cutting off.
         updateState { it.copy(userFeedback = message, showFeedback = true) }
         clearJob = scope.launch {
             delay(CLEAR_DELAY_MILLIS)

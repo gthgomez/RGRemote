@@ -85,6 +85,7 @@ internal fun RemoteSurface(
     accent: Color,
     accentSoft: Color,
     enabled: Boolean,
+    powerEnabled: Boolean,
     rokuControls: RokuControlAvailability,
     showWatchGoogleTv: Boolean,
     showWatchRoku: Boolean,
@@ -101,10 +102,11 @@ internal fun RemoteSurface(
 ) {
     val selected = state.selectedDevice
     val rokuPowerMode = if (ecosystem.type == DeviceType.ROKU_TV) state.selectedRokuPowerMode else null
-    val powerOffEnabled = enabled && (ecosystem.type != DeviceType.ROKU_TV || rokuControls.supportsPowerOff != false)
+    val powerOffEnabled = powerEnabled && (ecosystem.type != DeviceType.ROKU_TV || rokuControls.supportsPowerOff != false)
     val volumeEnabled = enabled && (ecosystem.type != DeviceType.ROKU_TV || rokuControls.supportsVolume != false)
     val wakeHint = if (ecosystem.type == DeviceType.ROKU_TV) RokuPowerMode.wakeHint(rokuPowerMode) else null
     val heroGlow = if (ecosystem.type == DeviceType.ROKU_TV) 0.42f else 0.28f
+    val hapticTrigger = rememberHapticTrigger()
 
     Box(
         modifier = modifier
@@ -209,6 +211,8 @@ internal fun RemoteSurface(
 
                 val isStandby = RokuPowerMode.displayLabel(rokuPowerMode) == "Standby" ||
                         state.connectionStatus == ConnectionStatus.OFFLINE
+                val powerModeUnknown = ecosystem.type == DeviceType.ROKU_TV && rokuPowerMode == null &&
+                        state.connectionStatus != ConnectionStatus.OFFLINE
 
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -216,25 +220,32 @@ internal fun RemoteSurface(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     RoundIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", accentSoft, enabled) {
-                        onCommand(RemoteCommand.Back)
+                        hapticTrigger { onCommand(RemoteCommand.Back) }
                     }
                     RoundIconButton(Icons.Default.Home, "Home", accentSoft, enabled) {
-                        onCommand(RemoteCommand.Home)
+                        hapticTrigger { onCommand(RemoteCommand.Home) }
                     }
-                    val powerCommand = if (ecosystem.type == DeviceType.ROKU_TV) {
-                        if (isStandby) RemoteCommand.PowerOn else RemoteCommand.PowerOff
-                    } else {
-                        RemoteCommand.PowerToggle
+                    val powerCommand = when {
+                        ecosystem.type != DeviceType.ROKU_TV -> RemoteCommand.PowerToggle
+                        powerModeUnknown -> RemoteCommand.PowerToggle
+                        isStandby -> RemoteCommand.PowerOn
+                        else -> RemoteCommand.PowerOff
                     }
-                    val powerColor = if (ecosystem.type == DeviceType.ROKU_TV && isStandby) SuccessGreen else DangerRed
-                    val powerEnabled = if (ecosystem.type == DeviceType.ROKU_TV && isStandby) enabled else powerOffEnabled
+                    val powerAccent = when {
+                        ecosystem.type != DeviceType.ROKU_TV -> DangerRed
+                        powerModeUnknown -> SecondaryText
+                        isStandby -> SuccessGreen
+                        else -> DangerRed
+                    }
+                    val powerControlEnabled =
+                        if (ecosystem.type == DeviceType.ROKU_TV && isStandby) powerEnabled else powerOffEnabled
                     RoundIconButton(
                         icon = Icons.Default.PowerSettingsNew,
-                        label = if (isStandby) "Wake" else "Power",
-                        accent = powerColor,
-                        enabled = powerEnabled
+                        label = if (!powerModeUnknown && isStandby) "Wake" else "Power",
+                        accent = powerAccent,
+                        enabled = powerControlEnabled
                     ) {
-                        onCommand(powerCommand)
+                        hapticTrigger { onCommand(powerCommand) }
                     }
                 }
 
@@ -266,45 +277,47 @@ internal fun RemoteSurface(
                                 accentSoft = accentSoft,
                                 enabled = enabled,
                                 clusterSize = clusterSize,
-                                onDpad = onDpad,
-                                onSelect = { onCommand(RemoteCommand.Select) }
+                                onDpad = { direction ->
+                                    hapticTrigger { onDpad(direction) }
+                                },
+                                onSelect = {
+                                    hapticTrigger { onCommand(RemoteCommand.Select) }
+                                }
                             )
                         }
-                        VolumeRail(
-                            accent = accent,
-                            enabled = volumeEnabled,
-                            height = clusterCap,
-                            onVolumeUp = { onVolume(VolumeCommand.UP) },
-                            onVolumeDown = { onVolume(VolumeCommand.DOWN) }
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            VolumeRail(
+                                accent = accent,
+                                enabled = volumeEnabled,
+                                height = (clusterCap - 48.dp).coerceAtLeast(120.dp),
+                                onVolumeUp = { hapticTrigger { onVolume(VolumeCommand.UP) } },
+                                onVolumeDown = { hapticTrigger { onVolume(VolumeCommand.DOWN) } }
+                            )
+                            RoundIconButton(
+                                icon = Icons.AutoMirrored.Filled.VolumeOff,
+                                label = "Mute",
+                                accent = accentSoft,
+                                enabled = volumeEnabled,
+                                size = 40.dp
+                            ) {
+                                hapticTrigger { onVolume(VolumeCommand.MUTE) }
+                            }
+                        }
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                TransportButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    icon = Icons.Default.PlayArrow,
+                    label = "PLAY",
+                    accent = accentSoft,
+                    enabled = enabled,
+                    emphasized = false
                 ) {
-                    TransportButton(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.Default.PlayArrow,
-                        label = "PLAY",
-                        accent = accentSoft,
-                        enabled = enabled,
-                        emphasized = false
-                    ) {
-                        onCommand(RemoteCommand.PlayPause)
-                    }
-                    TransportButton(
-                        modifier = Modifier.weight(1f),
-                        icon = Icons.AutoMirrored.Filled.VolumeOff,
-                        label = "MUTE",
-                        accent = accentSoft,
-                        enabled = volumeEnabled,
-                        emphasized = false
-                    ) {
-                        onVolume(VolumeCommand.MUTE)
-                    }
+                    hapticTrigger { onCommand(RemoteCommand.PlayPause) }
                 }
 
                 if (wakeHint != null && ecosystem.type == DeviceType.ROKU_TV) {
@@ -404,6 +417,7 @@ internal fun VolumeRail(
                 accent = accent,
                 enabled = enabled,
                 size = buttonSize,
+                holdRepeat = true,
                 onClick = onVolumeUp
             )
             Icon(
@@ -418,6 +432,7 @@ internal fun VolumeRail(
                 accent = accent,
                 enabled = enabled,
                 size = buttonSize,
+                holdRepeat = true,
                 onClick = onVolumeDown
             )
         }
@@ -524,6 +539,7 @@ internal fun DpadCluster(
             compact = true,
             faceplate = false,
             buttonSize = directionButtonSize,
+            holdRepeat = true,
         ) { onDpad(DpadDirection.UP) }
         DpadButton(
             modifier = Modifier.align(Alignment.CenterStart).padding(start = edgePad),
@@ -534,6 +550,7 @@ internal fun DpadCluster(
             compact = true,
             faceplate = isRoku,
             buttonSize = directionButtonSize,
+            holdRepeat = true,
         ) { onDpad(DpadDirection.LEFT) }
         DpadButton(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = edgePad),
@@ -544,6 +561,7 @@ internal fun DpadCluster(
             compact = true,
             faceplate = isRoku,
             buttonSize = directionButtonSize,
+            holdRepeat = true,
         ) { onDpad(DpadDirection.RIGHT) }
         DpadButton(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = edgePad),
@@ -554,6 +572,7 @@ internal fun DpadCluster(
             compact = true,
             faceplate = false,
             buttonSize = directionButtonSize,
+            holdRepeat = true,
         ) { onDpad(DpadDirection.DOWN) }
         OkButton(accent = accent, enabled = enabled, diameter = okDiameter, onClick = onSelect)
     }
@@ -569,6 +588,7 @@ internal fun DpadButton(
     compact: Boolean,
     faceplate: Boolean = false,
     buttonSize: Dp = if (compact) 50.dp else 52.dp,
+    holdRepeat: Boolean = false,
     onClick: () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -587,6 +607,13 @@ internal fun DpadButton(
     IconButton(
         modifier = modifier
             .size(if (faceplate) size + 6.dp else size)
+            .then(
+                if (holdRepeat) {
+                    Modifier.holdRepeatPress(enabled, interaction, onClick)
+                } else {
+                    Modifier
+                }
+            )
             .scale(scale)
             .neoGlow(accent, glowAlpha, radius = 14.dp)
             .clip(if (faceplate) RoundedCornerShape(14.dp) else CircleShape)

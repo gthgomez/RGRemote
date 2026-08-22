@@ -1,5 +1,6 @@
 package com.rgremote.app.ui
 
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +10,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rgremote.app.domain.AppLaunchTarget
@@ -49,6 +53,9 @@ internal fun RemoteTabLayout(
 ) {
     val remoteWeight = if (setupGuideNeeded(state)) 0.64f else 0.72f
     val dockWeight = 1f - remoteWeight
+    val deviceDown = state.connectionStatus == ConnectionStatus.OFFLINE ||
+            state.connectionStatus == ConnectionStatus.CONNECTION_FAILED
+    val controlsEnabled = state.selectedDevice != null && !deviceDown
 
     Column(
         modifier = modifier.fillMaxSize(),
@@ -63,7 +70,8 @@ internal fun RemoteTabLayout(
             ecosystem = ecosystem,
             accent = accent,
             accentSoft = accentSoft,
-            enabled = state.selectedDevice != null,
+            enabled = controlsEnabled,
+            powerEnabled = state.selectedDevice != null,
             rokuControls = state.selectedRokuControls,
             showWatchGoogleTv = showWatchGoogleTv,
             showWatchRoku = showWatchRoku,
@@ -86,6 +94,7 @@ internal fun RemoteTabLayout(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .alpha(if (deviceDown) 0.35f else 1f)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(sectionSpacing)
             ) {
@@ -105,6 +114,21 @@ internal fun RemoteTabLayout(
                     onTargetChange = onTargetChange,
                     onLaunch = onLaunch,
                     onSwitchInput = onSwitchInput
+                )
+            }
+            if (deviceDown) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    event.changes.forEach { it.consume() }
+                                    if (event.changes.all { !it.pressed }) break
+                                }
+                            }
+                        }
                 )
             }
         }

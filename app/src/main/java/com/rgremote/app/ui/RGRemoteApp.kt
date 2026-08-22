@@ -64,6 +64,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -100,6 +102,7 @@ import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.roku.RokuPowerMode
 import com.rgremote.app.domain.DpadDirection
+import com.rgremote.app.domain.duplicateDeviceCount
 import com.rgremote.app.domain.HdmiPort
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RemoteCommand
@@ -139,6 +142,7 @@ fun RGRemoteApp(viewModel: RGRemoteViewModel) {
         onHideConnectionGuide = { viewModel.setShowConnectionGuide(false) },
         onSetShowConnectionGuide = viewModel::setShowConnectionGuide,
         onSetShowUtilitiesDock = viewModel::setShowUtilitiesDock,
+        onSetStartupScreen = viewModel::setStartupScreen,
         onRemoveSavedDevice = viewModel::removeSavedDevice,
         onDedupeSavedDevices = viewModel::dedupeSavedDevices
     )
@@ -175,6 +179,7 @@ private fun RGRemoteScreen(
     onHideConnectionGuide: () -> Unit,
     onSetShowConnectionGuide: (Boolean) -> Unit,
     onSetShowUtilitiesDock: (Boolean) -> Unit,
+    onSetStartupScreen: (RemoteTab?) -> Unit,
     onRemoveSavedDevice: (String) -> Unit,
     onDedupeSavedDevices: () -> Unit,
 ) {
@@ -183,6 +188,10 @@ private fun RGRemoteScreen(
     var showGoogleTvAppDialog by rememberSaveable { mutableStateOf(false) }
     var showManualDeviceDialog by rememberSaveable { mutableStateOf(false) }
     var showSetupGuideDialog by rememberSaveable { mutableStateOf(false) }
+    var manualAddAttempt by remember { mutableStateOf<ManualAddAttempt?>(null) }
+    var manualSawProbe by remember { mutableStateOf(false) }
+    var manualInlineMessage by remember { mutableStateOf<String?>(null) }
+    var manualInlineIsError by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val googleTv = state.googleTvDevice
     val ecosystem = rememberEcosystemStyle(state.selectedDevice?.type)
@@ -201,6 +210,56 @@ private fun RGRemoteScreen(
         val message = state.userFeedback ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         onClearUserFeedback()
+    }
+
+    LaunchedEffect(showManualDeviceDialog) {
+        if (!showManualDeviceDialog) return@LaunchedEffect
+        manualAddAttempt = null
+        manualSawProbe = false
+        manualInlineMessage = null
+        manualInlineIsError = false
+    }
+
+    LaunchedEffect(
+        manualAddAttempt,
+        state.isProbingManualDevice,
+        state.userFeedback,
+        state.connectionStatus,
+        state.devices.size
+    ) {
+        val attempt = manualAddAttempt
+        if (attempt == null) {
+            return@LaunchedEffect
+        }
+        val probing = state.isProbingManualDevice
+        when {
+            probing -> {
+                manualSawProbe = true
+                manualInlineMessage = state.manualProbeMessage ?: MANUAL_PROBE_PROGRESS_FALLBACK
+                manualInlineIsError = false
+            }
+            state.userFeedback != null && state.userFeedback != attempt.priorFeedback -> {
+                manualInlineMessage = state.userFeedback
+                manualInlineIsError = true
+                manualAddAttempt = null
+            }
+            state.devices.size > attempt.deviceCount ||
+                (!attempt.priorOnline && state.connectionStatus == ConnectionStatus.ONLINE) -> {
+                manualInlineMessage = null
+                manualAddAttempt = null
+                showManualDeviceDialog = false
+            }
+            manualSawProbe && !probing -> {
+                if (state.connectionStatus == ConnectionStatus.CONNECTION_FAILED) {
+                    manualInlineMessage = state.diagnosticMessage ?: MANUAL_ADD_FAILED_FALLBACK
+                    manualInlineIsError = true
+                } else {
+                    manualInlineMessage = null
+                    showManualDeviceDialog = false
+                }
+                manualAddAttempt = null
+            }
+        }
     }
 
     Scaffold(
@@ -358,6 +417,7 @@ private fun RGRemoteScreen(
                                 onOpenApps = { onSelectTab(RemoteTab.APPS) },
                                 onSetShowConnectionGuide = onSetShowConnectionGuide,
                                 onSetShowUtilitiesDock = onSetShowUtilitiesDock,
+                                onSetStartupScreen = onSetStartupScreen,
                                 onRemoveSavedDevice = onRemoveSavedDevice,
                                 onDedupeSavedDevices = onDedupeSavedDevices
                             )
@@ -394,10 +454,24 @@ private fun RGRemoteScreen(
 
     if (showManualDeviceDialog) {
         ManualDeviceDialog(
-            onDismiss = { showManualDeviceDialog = false },
-            onAdd = { type, address, name ->
-                onAddManualDevice(type, address, name)
+            isBusy = state.isProbingManualDevice,
+            inlineMessage = manualInlineMessage,
+            inlineIsError = manualInlineIsError,
+            onDismiss = {
+                manualAddAttempt = null
+                manualInlineMessage = null
                 showManualDeviceDialog = false
+            },
+            onAdd = { type, address, name ->
+                manualAddAttempt = ManualAddAttempt(
+                    deviceCount = state.devices.size,
+                    priorFeedback = state.userFeedback,
+                    priorOnline = state.connectionStatus == ConnectionStatus.ONLINE,
+                )
+                manualSawProbe = false
+                manualInlineMessage = null
+                manualInlineIsError = false
+                onAddManualDevice(type, address, name)
             }
         )
     }
@@ -432,7 +506,8 @@ private fun SetupGuideBanner(
     onOpenGuide: () -> Unit,
     onHide: () -> Unit,
 ) {
-    if (!setupGuideNeeded(state)) return
+    if (!state.showConnectionGuide) return
+    if (!state.setupIncomplete) return
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -691,11 +766,13 @@ private fun SavedTvsSummary(state: RGRemoteUiState) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(
-                text = "If you see duplicates after reinstall, open Settings and tap Merge duplicate TVs.",
-                style = MaterialTheme.typography.labelSmall,
-                color = SecondaryText.copy(alpha = 0.85f)
-            )
+            if (state.devices.duplicateDeviceCount() > 0) {
+                Text(
+                    text = "If you see duplicates after reinstall, open Settings and tap Merge duplicate TVs.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = SecondaryText.copy(alpha = 0.85f)
+                )
+            }
         }
     }
 }
@@ -949,7 +1026,7 @@ private fun RokuChannelPicker(
         if (apps.isEmpty()) {
             EmptyAppsHint(text = "Tap Refresh Channels to read installed Roku apps.", accent = accent)
         } else {
-            apps.take(24).forEach { app ->
+            apps.forEach { app ->
                 val pinned = pins.any { it.deviceType == DeviceType.ROKU_TV && it.launchValue == app.id }
                 RokuChannelRow(app = app, pinned = pinned, accent = accent, onPin = onPin)
             }
@@ -1024,6 +1101,7 @@ private fun SettingsPanel(
     onOpenApps: () -> Unit,
     onSetShowConnectionGuide: (Boolean) -> Unit,
     onSetShowUtilitiesDock: (Boolean) -> Unit,
+    onSetStartupScreen: (RemoteTab?) -> Unit,
     onRemoveSavedDevice: (String) -> Unit,
     onDedupeSavedDevices: () -> Unit,
 ) {
@@ -1056,7 +1134,8 @@ private fun SettingsPanel(
                         label = "Refresh Status",
                         icon = Icons.Default.Check,
                         accent = accent,
-                        enabled = state.selectedDevice?.type == DeviceType.ROKU_TV,
+                        enabled = state.selectedDevice?.type == DeviceType.ROKU_TV ||
+                            state.selectedDevice?.type == DeviceType.GOOGLE_TV,
                         onClick = onRefreshStatus
                     )
                 }
@@ -1076,6 +1155,37 @@ private fun SettingsPanel(
                     enabled = true,
                     onClick = onDedupeSavedDevices
                 )
+            }
+            SettingsSection(
+                title = "Startup",
+                body = "Choose which screen RGRemote opens on when you launch the app.",
+                accent = accent
+            ) {
+                var startupChoice by rememberSaveable { mutableStateOf(STARTUP_CHOICE_UNSET) }
+                StartupChoiceRow(
+                    label = "Remember last screen",
+                    selected = startupChoice == STARTUP_CHOICE_LAST_SCREEN,
+                    accent = accent,
+                    onSelect = {
+                        startupChoice = STARTUP_CHOICE_LAST_SCREEN
+                        onSetStartupScreen(null)
+                    }
+                )
+                listOf(
+                    RemoteTab.REMOTE to "Always open Remote",
+                    RemoteTab.APPS to "Always open Apps",
+                    RemoteTab.SETTINGS to "Always open Settings"
+                ).forEach { (tab, label) ->
+                    StartupChoiceRow(
+                        label = label,
+                        selected = startupChoice == tab.name,
+                        accent = accent,
+                        onSelect = {
+                            startupChoice = tab.name
+                            onSetStartupScreen(tab)
+                        }
+                    )
+                }
             }
             SettingsSection(
                 title = "Remote screen",
@@ -1216,6 +1326,47 @@ private fun PreferenceSwitchRow(
     }
 }
 
+private const val STARTUP_CHOICE_UNSET = "unset"
+private const val STARTUP_CHOICE_LAST_SCREEN = "last"
+
+@Composable
+private fun StartupChoiceRow(
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    onSelect: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSelect),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = PrimaryText,
+            modifier = Modifier.weight(1f)
+        )
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            colors = RadioButtonDefaults.colors(selectedColor = accent, unselectedColor = SecondaryText)
+        )
+    }
+}
+
+/** Snapshot taken when Add-by-IP is submitted so probe completion can be classified as success or failure. */
+private data class ManualAddAttempt(
+    val deviceCount: Int,
+    val priorFeedback: String?,
+    val priorOnline: Boolean,
+)
+
+private const val MANUAL_PROBE_PROGRESS_FALLBACK = "Checking that address for a Roku…"
+private const val MANUAL_ADD_FAILED_FALLBACK = "Couldn't reach that address. Check it and try again."
+
 @Composable
 private fun SavedDeviceRow(
     device: RegisteredDevice,
@@ -1314,6 +1465,9 @@ private fun SettingsActionButton(
 
 @Composable
 private fun ManualDeviceDialog(
+    isBusy: Boolean,
+    inlineMessage: String?,
+    inlineIsError: Boolean,
     onDismiss: () -> Unit,
     onAdd: (DeviceType, String, String) -> Unit
 ) {
@@ -1325,10 +1479,10 @@ private fun ManualDeviceDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(
-                enabled = address.trim().isNotBlank(),
+                enabled = address.trim().isNotBlank() && !isBusy,
                 onClick = { onAdd(type, address, name) }
             ) {
-                Text("Add")
+                Text(if (isBusy) "Checking..." else "Add")
             }
         },
         dismissButton = {
@@ -1380,6 +1534,13 @@ private fun ManualDeviceDialog(
                     label = { Text("Optional name") },
                     placeholder = { Text(if (type == DeviceType.ROKU_TV) "Living Room Roku" else "Onn Google TV") }
                 )
+                if (inlineMessage != null) {
+                    Text(
+                        text = inlineMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (inlineIsError) DangerRed else SecondaryText
+                    )
+                }
             }
         },
         containerColor = NeoSurface,
@@ -1473,9 +1634,9 @@ private fun GoogleTvSetupDialog(
                     text = if (isPaired) {
                         "Google TV is paired. Start again only if you need to re-pair."
                     } else if (sessionStarted) {
-                        "Pairing started. Enter the PIN shown on the Google TV."
+                        "Pairing started. Enter the 6-character code shown on your TV (letters and numbers)."
                     } else {
-                        "Start pairing, then enter the PIN shown on Google TV."
+                        "Start pairing, then enter the 6-character code shown on your TV (letters and numbers)."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = SecondaryText
@@ -1489,7 +1650,7 @@ private fun GoogleTvSetupDialog(
                         value = state.pairingPin,
                         onValueChange = onPairingPinChange,
                         singleLine = true,
-                        label = { Text("PIN") }
+                        label = { Text("Code") }
                     )
                     Button(
                         modifier = Modifier.height(56.dp),
@@ -1506,6 +1667,11 @@ private fun GoogleTvSetupDialog(
                         Text("Pair")
                     }
                 }
+                Text(
+                    text = "The pairing window lasts about a minute. If it expires, start pairing again for a new code.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SecondaryText
+                )
                 Text(
                     text = "Pick the Roku TV HDMI input where the Onn box is plugged in.",
                     style = MaterialTheme.typography.bodyMedium,
