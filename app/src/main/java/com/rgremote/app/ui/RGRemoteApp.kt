@@ -196,6 +196,9 @@ private fun RGRemoteScreen(
     var manualSawProbe by remember { mutableStateOf(false) }
     var manualInlineMessage by remember { mutableStateOf<String?>(null) }
     var manualInlineIsError by remember { mutableStateOf(false) }
+    var pendingRemoveDeviceId by remember { mutableStateOf<String?>(null) }
+    var pendingRemoveApp by remember { mutableStateOf<AppLaunchTarget?>(null) }
+    var showResetButtonsConfirm by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val googleTv = state.googleTvDevice
     val ecosystem = rememberEcosystemStyle(state.selectedDevice?.type)
@@ -384,7 +387,7 @@ private fun RGRemoteScreen(
                                     editingGoogleTvApp = null
                                     showGoogleTvAppDialog = true
                                 },
-                                onRemovePinnedApp = onRemovePinnedApp
+                                onRemovePinnedApp = { app -> pendingRemoveApp = app }
                             )
                             Spacer(Modifier.height(18.dp))
                         }
@@ -417,12 +420,12 @@ private fun RGRemoteScreen(
                                         }
                                     }
                                 },
-                                onResetAppPins = onResetAppPins,
+                                onResetAppPins = { showResetButtonsConfirm = true },
                                 onOpenApps = { onSelectTab(RemoteTab.APPS) },
                                 onSetShowConnectionGuide = onSetShowConnectionGuide,
                                 onSetShowUtilitiesDock = onSetShowUtilitiesDock,
                                 onSetStartupScreen = onSetStartupScreen,
-                                onRemoveSavedDevice = onRemoveSavedDevice,
+                                onRemoveSavedDevice = { id -> pendingRemoveDeviceId = id },
                                 onDedupeSavedDevices = onDedupeSavedDevices
                             )
                             Spacer(Modifier.height(18.dp))
@@ -502,6 +505,48 @@ private fun RGRemoteScreen(
                     }
                 }
             }
+        )
+    }
+
+    val pendingRemoveDevice = pendingRemoveDeviceId?.let { id ->
+        state.devices.firstOrNull { it.id == id }
+    }
+    if (pendingRemoveDevice != null) {
+        ConfirmDialog(
+            title = "Remove ${pendingRemoveDevice.friendlyName}?",
+            body = "This saved TV will be forgotten. Rescan or add by IP to bring it back.",
+            confirmLabel = "Remove",
+            onConfirm = {
+                pendingRemoveDeviceId = null
+                onRemoveSavedDevice(pendingRemoveDevice.id)
+            },
+            onDismiss = { pendingRemoveDeviceId = null }
+        )
+    }
+
+    pendingRemoveApp?.let { app ->
+        ConfirmDialog(
+            title = "Remove ${app.displayName}?",
+            body = "This shortcut will be removed from your app buttons.",
+            confirmLabel = "Remove",
+            onConfirm = {
+                pendingRemoveApp = null
+                onRemovePinnedApp(app)
+            },
+            onDismiss = { pendingRemoveApp = null }
+        )
+    }
+
+    if (showResetButtonsConfirm) {
+        ConfirmDialog(
+            title = "Reset app buttons?",
+            body = "All pinned app buttons are replaced with the default Google TV buttons: YouTube, Netflix, Disney+, and Plex.",
+            confirmLabel = "Reset",
+            onConfirm = {
+                showResetButtonsConfirm = false
+                onResetAppPins()
+            },
+            onDismiss = { showResetButtonsConfirm = false }
         )
     }
 }
@@ -1709,6 +1754,44 @@ private fun GoogleTvSetupDialog(
                     }
                 }
             }
+        },
+        containerColor = NeoSurface,
+        titleContentColor = PrimaryText,
+        textContentColor = SecondaryText
+    )
+}
+
+@Composable
+private fun ConfirmDialog(
+    title: String,
+    body: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DangerRed,
+                    contentColor = Color.White
+                ),
+                onClick = onConfirm
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        title = {
+            Text(title)
+        },
+        text = {
+            Text(body)
         },
         containerColor = NeoSurface,
         titleContentColor = PrimaryText,
