@@ -105,8 +105,6 @@ data class RGRemoteUiState(
     val inferredHdmiPort: HdmiPort?
         get() = activeApp?.inferredHdmiPort
 
-    val inputHintText: String?
-        get() = inferredHdmiPort?.let { port -> "Likely input: ${port.displayName} (hint)" }
     val selectedDevice: RegisteredDevice? =
         devices.firstOrNull { it.id == selectedDeviceId } ?: devices.firstOrNull()
 

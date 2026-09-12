@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -49,10 +52,12 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MergeType
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartDisplay
@@ -93,6 +98,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -1132,7 +1138,7 @@ private fun SettingsPanel(
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
                         label = "Refresh Status",
-                        icon = Icons.Default.Check,
+                        icon = Icons.Default.Refresh,
                         accent = accent,
                         enabled = state.selectedDevice?.type == DeviceType.ROKU_TV ||
                             state.selectedDevice?.type == DeviceType.GOOGLE_TV,
@@ -1150,7 +1156,7 @@ private fun SettingsPanel(
                 SettingsActionButton(
                     modifier = Modifier.fillMaxWidth(),
                     label = "Merge duplicate TVs",
-                    icon = Icons.Default.Refresh,
+                    icon = Icons.Default.MergeType,
                     accent = accent,
                     enabled = true,
                     onClick = onDedupeSavedDevices
@@ -1291,7 +1297,7 @@ private fun SettingsPanel(
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
                         label = if (ecosystem.type == DeviceType.ROKU_TV) "Refresh Channels" else "Reset Buttons",
-                        icon = if (ecosystem.type == DeviceType.ROKU_TV) Icons.Default.Refresh else Icons.Default.Delete,
+                        icon = if (ecosystem.type == DeviceType.ROKU_TV) Icons.Default.Refresh else Icons.Default.RestartAlt,
                         accent = if (ecosystem.type == DeviceType.ROKU_TV) accent else DangerRed,
                         enabled = true,
                         onClick = if (ecosystem.type == DeviceType.ROKU_TV) onRefreshRokuChannels else onResetAppPins
@@ -1309,7 +1315,14 @@ private fun PreferenceSwitchRow(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .defaultMinSize(minHeight = 48.dp)
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1321,7 +1334,7 @@ private fun PreferenceSwitchRow(
         )
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = null
         )
     }
 }
@@ -1338,8 +1351,13 @@ private fun StartupChoiceRow(
 ) {
     Row(
         modifier = Modifier
+            .defaultMinSize(minHeight = 48.dp)
             .fillMaxWidth()
-            .clickable(onClick = onSelect),
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = onSelect
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

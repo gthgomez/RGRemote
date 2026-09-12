@@ -67,6 +67,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -312,7 +315,7 @@ internal fun RemoteSurface(
                 TransportButton(
                     modifier = Modifier.fillMaxWidth(),
                     icon = Icons.Default.PlayArrow,
-                    label = "PLAY",
+                    label = "Play / Pause",
                     accent = accentSoft,
                     enabled = enabled,
                     emphasized = false
@@ -370,6 +373,7 @@ private fun CompactWatchChip(
         modifier = modifier
             .height(40.dp)
             .clip(RoundedCornerShape(12.dp))
+            .semantics { role = Role.Button }
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = accent.copy(alpha = 0.18f),
@@ -434,38 +438,6 @@ internal fun VolumeRail(
                 size = buttonSize,
                 holdRepeat = true,
                 onClick = onVolumeDown
-            )
-        }
-    }
-}
-
-@Composable
-internal fun SurfacePill(modifier: Modifier = Modifier, text: String, accent: Color) {
-    Surface(
-        modifier = modifier.padding(end = 8.dp),
-        shape = RoundedCornerShape(999.dp),
-        color = NeoCard.copy(alpha = 0.78f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.42f))
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(accent)
-                    .neoGlow(accent, 0.6f, radius = 8.dp)
-            )
-            Text(
-                text,
-                color = PrimaryText,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
             )
         }
     }
