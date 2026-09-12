@@ -27,7 +27,8 @@ class PairingOrchestrator(
                 pairingSessionDeviceId = null,
                 pairingPin = "",
                 connectionStatus = ConnectionStatus.CHECKING,
-                diagnosticMessage = if (isRepairing) "Re-pairing Google TV" else "Starting Google TV pairing",
+                pairingStatusMessage = if (isRepairing) "Re-pairing Google TV" else "Starting Google TV pairing",
+                pairingStatusIsError = false,
             )
         }
         scope.launch {
@@ -43,7 +44,8 @@ class PairingOrchestrator(
                             state.copy(
                                 pairingSessionDeviceId = device.id,
                                 connectionStatus = ConnectionStatus.NOT_PAIRED,
-                                diagnosticMessage = "Enter the 6-character PIN shown on Google TV",
+                                pairingStatusMessage = "Enter the 6-character PIN shown on Google TV",
+                                pairingStatusIsError = false,
                                 userFeedback = PAIRING_WINDOW_OPEN_MESSAGE,
                                 showFeedback = true,
                             )
@@ -54,7 +56,8 @@ class PairingOrchestrator(
                             state.copy(
                                 pairingSessionDeviceId = null,
                                 connectionStatus = ConnectionStatus.CONNECTION_FAILED,
-                                diagnosticMessage = "Pairing start failed: ${error.message}"
+                                pairingStatusMessage = "Pairing start failed: ${error.message}",
+                                pairingStatusIsError = true
                             )
                         }
                     }
@@ -63,7 +66,8 @@ class PairingOrchestrator(
                     state.copy(
                         pairingSessionDeviceId = null,
                         connectionStatus = ConnectionStatus.CONNECTION_FAILED,
-                        diagnosticMessage = "Pairing start failed: ${e.message}"
+                        pairingStatusMessage = "Pairing start failed: ${e.message}",
+                        pairingStatusIsError = true
                     )
                 }
             } finally {
@@ -81,7 +85,8 @@ class PairingOrchestrator(
                     it.copy(
                         isPairing = true,
                         connectionStatus = ConnectionStatus.CHECKING,
-                        diagnosticMessage = "Completing Google TV pairing",
+                        pairingStatusMessage = "Completing Google TV pairing",
+                        pairingStatusIsError = false,
                     )
                 }
                 pairingManager.finishPairing(device, pin)
@@ -91,7 +96,8 @@ class PairingOrchestrator(
                                 pairingPin = "",
                                 pairingSessionDeviceId = null,
                                 connectionStatus = ConnectionStatus.PAIRED,
-                                diagnosticMessage = "Google TV paired"
+                                pairingStatusMessage = "Google TV paired",
+                                pairingStatusIsError = false
                             )
                         }
                     }
@@ -101,7 +107,8 @@ class PairingOrchestrator(
                             state.copy(
                                 pairingSessionDeviceId = null,
                                 connectionStatus = ConnectionStatus.CONNECTION_FAILED,
-                                diagnosticMessage = "Pairing failed: ${error.message}. Tap Start for a new code.",
+                                pairingStatusMessage = "Pairing failed: ${error.message}. Tap Start for a new code.",
+                                pairingStatusIsError = true,
                                 userFeedback = if (expiredWindow) PAIRING_WINDOW_EXPIRED_MESSAGE else null,
                                 showFeedback = expiredWindow,
                             )

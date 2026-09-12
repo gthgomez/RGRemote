@@ -90,6 +90,8 @@ data class RGRemoteUiState(
     val isPairing: Boolean = false,
     val pairingSessionDeviceId: String? = null,
     val pairingPin: String = "",
+    val pairingStatusMessage: String? = null,
+    val pairingStatusIsError: Boolean = false,
     val launchTarget: String = "",
     val connectionStatus: ConnectionStatus = ConnectionStatus.CHECKING,
     val diagnosticMessage: String? = null,
@@ -438,6 +440,10 @@ class RGRemoteViewModel(
 
     fun updatePairingPin(pin: String) {
         pairingOrchestrator.updatePairingPin(pin)
+    }
+
+    fun clearPairingStatus() {
+        localState.update { it.copy(pairingStatusMessage = null, pairingStatusIsError = false) }
     }
 
     fun updateLaunchTarget(target: String) {
