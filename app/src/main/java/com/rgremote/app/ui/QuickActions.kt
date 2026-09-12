@@ -90,6 +90,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -221,6 +225,10 @@ private fun UtilitiesExpander(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
+            .semantics {
+                role = Role.Button
+                stateDescription = if (expanded) "Expanded" else "Collapsed"
+            }
             .clickable(onClick = onToggle),
         shape = RoundedCornerShape(14.dp),
         color = NeoCard.copy(alpha = 0.38f),
@@ -371,6 +379,7 @@ private fun QuickActionChip(
         modifier = modifier
             .height(48.dp)
             .clip(RoundedCornerShape(12.dp))
+            .semantics { role = Role.Button }
             .clickable(enabled = enabled, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = if (isAdd) accent.copy(alpha = 0.24f) else NeoCard.copy(alpha = 0.76f),
@@ -378,39 +387,6 @@ private fun QuickActionChip(
     ) {
         Box(contentAlignment = Alignment.Center) {
             PresetLogo(label = label, accent = accent)
-        }
-    }
-}
-
-@Composable
-internal fun PresetLaunchRow(
-    accent: Color,
-    presets: List<Pair<String, String>>,
-    onLaunchPreset: (String) -> Unit,
-    onAddClick: () -> Unit = {},
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        presets.take(4).forEach { (label, target) ->
-            val isAdd = label.startsWith("+")
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(enabled = isAdd || target.isNotBlank()) {
-                        if (isAdd) onAddClick() else onLaunchPreset(target)
-                    },
-                shape = RoundedCornerShape(12.dp),
-                color = if (isAdd) accent.copy(alpha = 0.24f) else NeoCard.copy(alpha = 0.76f),
-                border = BorderStroke(1.dp, if (isAdd) accent.copy(alpha = 0.45f) else GlassStroke)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    PresetLogo(label = label, accent = accent)
-                }
-            }
         }
     }
 }

@@ -1,11 +1,7 @@
 package com.rgremote.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -89,6 +86,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -543,7 +541,7 @@ internal fun EcosystemSegment(
         modifier = modifier
             .height(34.dp)
             .clip(RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick),
+            .selectable(selected = selected, enabled = enabled, role = Role.Tab, onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         color = if (selected) accent.copy(alpha = 0.28f) else NeoCard.copy(alpha = 0.48f),
         border = BorderStroke(1.dp, accent.copy(alpha = if (selected) 0.72f else 0.14f))
@@ -719,128 +717,6 @@ internal fun CompactDeviceChip(
 }
 
 @Composable
-internal fun DeviceTiles(
-    state: RGRemoteUiState,
-    accent: Color,
-    onSelect: (String) -> Unit,
-    onGoogleTileClick: (RegisteredDevice) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        EcosystemDeviceCard(
-            modifier = Modifier.weight(1f),
-            fallbackTitle = "TCL Roku TV",
-            platformLabel = "Roku TV",
-            device = state.rokuDevice,
-            selected = state.selectedDevice?.type == DeviceType.ROKU_TV,
-            detail = state.rokuDevice?.let { "${it.ipAddress}:${it.port}" } ?: "Scan on Wi-Fi",
-            primary = RokuPrimary,
-            accent = RokuAccent,
-            onClick = { device -> onSelect(device.id) }
-        )
-        EcosystemDeviceCard(
-            modifier = Modifier.weight(1f),
-            fallbackTitle = "Onn Google TV",
-            platformLabel = "Google TV",
-            device = state.googleTvDevice,
-            selected = state.selectedDevice?.type == DeviceType.GOOGLE_TV,
-            detail = state.googleTvDevice?.let { google ->
-                val mapped = google.hdmiPortMapping?.displayName ?: "Map HDMI"
-                val paired = if (state.pairedDeviceIds.contains(google.id)) "Paired" else "Tap to pair"
-                "$paired / $mapped"
-            } ?: "Scan on Wi-Fi",
-            primary = GooglePrimary,
-            accent = GoogleAccent,
-            onClick = onGoogleTileClick
-        )
-    }
-    EcosystemSignalBar(accent = accent)
-}
-
-@Composable
-internal fun EcosystemDeviceCard(
-    modifier: Modifier,
-    fallbackTitle: String,
-    platformLabel: String,
-    device: RegisteredDevice?,
-    selected: Boolean,
-    detail: String,
-    primary: Color,
-    accent: Color,
-    onClick: (RegisteredDevice) -> Unit
-) {
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(durationMillis = 300),
-        label = "deviceCardGlow"
-    )
-    val borderColor by animateColorAsState(
-        targetValue = if (selected) primary else Color(0xFF303744),
-        animationSpec = tween(durationMillis = 300),
-        label = "deviceCardBorder"
-    )
-    Surface(
-        modifier = modifier
-            .height(148.dp)
-            .neoGlow(primary, glowAlpha * 0.36f, radius = 22.dp)
-            .clickable(enabled = device != null) { device?.let(onClick) },
-        shape = RoundedCornerShape(22.dp),
-        color = if (selected) NeoCard.copy(alpha = 0.96f) else NeoSurface.copy(alpha = 0.78f),
-        border = BorderStroke(if (selected) 1.5.dp else 1.dp, borderColor.copy(alpha = if (selected) 0.95f else 0.55f))
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                EcosystemBadge(
-                    deviceType = device?.type ?: if (platformLabel.startsWith("Roku")) DeviceType.ROKU_TV else DeviceType.GOOGLE_TV,
-                    primary = primary,
-                    accent = accent
-                )
-                AnimatedVisibility(selected) {
-                    Box(
-                        Modifier
-                            .size(9.dp)
-                            .clip(CircleShape)
-                            .background(SuccessGreen)
-                            .neoGlow(SuccessGreen, 0.5f, radius = 10.dp)
-                    )
-                }
-            }
-            Text(
-                text = device?.friendlyName ?: fallbackTitle,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = platformLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (selected) accent else SecondaryText.copy(alpha = 0.78f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = detail,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (selected) PrimaryText.copy(alpha = 0.86f) else SecondaryText.copy(alpha = 0.68f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
 internal fun EcosystemBadge(
     deviceType: DeviceType,
     primary: Color,
@@ -894,27 +770,4 @@ internal fun MiniDot(color: Color) {
             .clip(CircleShape)
             .background(color)
     )
-}
-
-@Composable
-internal fun EcosystemSignalBar(accent: Color) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.height(1.dp).weight(1f).background(Color.White.copy(alpha = 0.08f)))
-        Box(
-            Modifier
-                .padding(horizontal = 10.dp)
-                .width(72.dp)
-                .height(2.dp)
-                .clip(CircleShape)
-                .background(accent)
-                .neoGlow(accent, 0.45f, radius = 8.dp)
-        )
-        Box(Modifier.height(1.dp).weight(1f).background(Color.White.copy(alpha = 0.08f)))
-    }
 }
