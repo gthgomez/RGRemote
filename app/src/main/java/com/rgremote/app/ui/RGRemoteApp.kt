@@ -1213,15 +1213,11 @@ private fun SettingsPanel(
                 body = "Choose which screen RGRemote opens on when you launch the app.",
                 accent = accent
             ) {
-                var startupChoice by rememberSaveable { mutableStateOf(STARTUP_CHOICE_UNSET) }
                 StartupChoiceRow(
                     label = "Remember last screen",
-                    selected = startupChoice == STARTUP_CHOICE_LAST_SCREEN,
+                    selected = state.startupScreenPref == null,
                     accent = accent,
-                    onSelect = {
-                        startupChoice = STARTUP_CHOICE_LAST_SCREEN
-                        onSetStartupScreen(null)
-                    }
+                    onSelect = { onSetStartupScreen(null) }
                 )
                 listOf(
                     RemoteTab.REMOTE to "Always open Remote",
@@ -1230,12 +1226,9 @@ private fun SettingsPanel(
                 ).forEach { (tab, label) ->
                     StartupChoiceRow(
                         label = label,
-                        selected = startupChoice == tab.name,
+                        selected = state.startupScreenPref == tab,
                         accent = accent,
-                        onSelect = {
-                            startupChoice = tab.name
-                            onSetStartupScreen(tab)
-                        }
+                        onSelect = { onSetStartupScreen(tab) }
                     )
                 }
             }
@@ -1377,9 +1370,6 @@ private fun PreferenceSwitchRow(
         )
     }
 }
-
-private const val STARTUP_CHOICE_UNSET = "unset"
-private const val STARTUP_CHOICE_LAST_SCREEN = "last"
 
 @Composable
 private fun StartupChoiceRow(

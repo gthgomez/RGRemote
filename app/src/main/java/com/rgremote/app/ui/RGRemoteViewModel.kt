@@ -82,6 +82,7 @@ data class RGRemoteUiState(
     val selectedDeviceId: String? = null,
     val activeApp: ActiveApp? = null,
     val selectedTab: RemoteTab = RemoteTab.REMOTE,
+    val startupScreenPref: RemoteTab? = null,
     val rokuApps: List<RokuApp> = emptyList(),
     val isScanning: Boolean = false,
     val isLoadingApps: Boolean = false,
@@ -219,12 +220,13 @@ class RGRemoteViewModel(
             val (showGuide, showUtilities, state) = uiSnapshot
             val canonical = devices.canonicalDevicesPerType()
             val persistedId = uiPreferences.selectedDeviceId
+            val startupScreen = uiPreferences.startupScreen
             val selected = state.selectedDeviceId
                 ?: persistedId?.takeIf { id -> canonical.any { it.id == id } }
                 ?: canonical.firstOrNull()?.id
             val restoredTab = if (selectedTabRestored) state.selectedTab else {
                 selectedTabRestored = true
-                uiPreferences.selectedTab ?: RemoteTab.REMOTE
+                startupScreen ?: uiPreferences.selectedTab ?: RemoteTab.REMOTE
             }
             state.copy(
                 devices = canonical,
@@ -234,6 +236,7 @@ class RGRemoteViewModel(
                 pinnedApps = pins,
                 selectedDeviceId = selected,
                 selectedTab = restoredTab,
+                startupScreenPref = startupScreen,
                 setupIncomplete = canonical.isEmpty() ||
                     canonical.any { it.type == DeviceType.GOOGLE_TV && it.id !in pairedIds },
                 showConnectionGuide = showGuide,
@@ -318,7 +321,7 @@ class RGRemoteViewModel(
     }
 
     fun setStartupScreen(tab: RemoteTab?) {
-        uiPreferences.setSelectedTab(tab)
+        uiPreferences.setStartupScreen(tab)
         feedback.show(
             if (tab == null) {
                 "App will open on the last screen you used"

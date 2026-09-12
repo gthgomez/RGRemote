@@ -31,6 +31,16 @@ class RemoteUiPreferences(context: Context) {
         prefs.edit { putString(KEY_SELECTED_TAB, tab?.name) }
     }
 
+    /** Startup-screen override chosen in Settings; null means open on the last used tab. */
+    val startupScreen: RemoteTab?
+        get() = prefs.getString(KEY_STARTUP_SCREEN, null)?.let { name ->
+            RemoteTab.entries.firstOrNull { it.name == name }
+        }
+
+    fun setStartupScreen(tab: RemoteTab?) {
+        prefs.edit { putString(KEY_STARTUP_SCREEN, tab?.name) }
+    }
+
     fun setShowConnectionGuide(show: Boolean) {
         prefs.edit { putBoolean(KEY_SHOW_GUIDE, show) }
         _showConnectionGuide.value = show
@@ -47,5 +57,6 @@ class RemoteUiPreferences(context: Context) {
         private const val KEY_SHOW_UTILITIES = "show_utilities_dock"
         private const val KEY_SELECTED_DEVICE_ID = "selected_device_id"
         private const val KEY_SELECTED_TAB = "selected_tab"
+        private const val KEY_STARTUP_SCREEN = "startup_screen"
     }
 }
