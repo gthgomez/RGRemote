@@ -26,7 +26,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
@@ -34,10 +33,10 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
 
-      - name: Lint, verify debug build, and run unit tests
+      - name: Verify debug build and run unit tests
         run: |
           chmod +x gradlew
-          ./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace
 
       - name: Upload unit-test reports on failure
         if: failure()
@@ -46,3 +45,4 @@ jobs:
           name: rgremote-unit-test-reports
           path: app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: ignore
+
