@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -94,6 +95,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -124,6 +126,7 @@ fun RGRemoteApp(viewModel: RGRemoteViewModel) {
         onPairingPinChange = viewModel::updatePairingPin,
         onStartPairing = viewModel::startPairing,
         onFinishPairing = viewModel::finishPairing,
+        onClearPairingStatus = viewModel::clearPairingStatus,
         onSetMapping = viewModel::setHdmiMapping,
         onSwitchTvInput = viewModel::switchTvInput,
         onRefreshStatus = viewModel::refreshStatus,
@@ -161,6 +164,7 @@ private fun RGRemoteScreen(
     onPairingPinChange: (String) -> Unit,
     onStartPairing: (RegisteredDevice) -> Unit,
     onFinishPairing: (RegisteredDevice) -> Unit,
+    onClearPairingStatus: () -> Unit,
     onSetMapping: (RegisteredDevice, HdmiPort?) -> Unit,
     onSwitchTvInput: (HdmiPort) -> Unit,
     onRefreshStatus: () -> Unit,
@@ -433,7 +437,10 @@ private fun RGRemoteScreen(
         GoogleTvSetupDialog(
             state = state,
             google = googleTv,
-            onDismiss = { showGoogleTvSetupDialog = false },
+            onDismiss = {
+                onClearPairingStatus()
+                showGoogleTvSetupDialog = false
+            },
             onSetMapping = { port -> onSetMapping(googleTv, port) },
             onPairingPinChange = onPairingPinChange,
             onStartPairing = { onStartPairing(googleTv) },
@@ -1634,9 +1641,9 @@ private fun GoogleTvSetupDialog(
                     text = if (isPaired) {
                         "Google TV is paired. Start again only if you need to re-pair."
                     } else if (sessionStarted) {
-                        "Pairing started. Enter the 6-character code shown on your TV (letters and numbers)."
+                        "Pairing started. Enter the 6-character code shown on your TV."
                     } else {
-                        "Start pairing, then enter the 6-character code shown on your TV (letters and numbers)."
+                        "Start pairing, then enter the 6-character code shown on your TV."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = SecondaryText
@@ -1650,7 +1657,11 @@ private fun GoogleTvSetupDialog(
                         value = state.pairingPin,
                         onValueChange = onPairingPinChange,
                         singleLine = true,
-                        label = { Text("Code") }
+                        label = { Text("Code") },
+                        keyboardOptions = KeyboardOptions(
+                            autoCorrect = false,
+                            capitalization = KeyboardCapitalization.Characters
+                        )
                     )
                     Button(
                         modifier = Modifier.height(56.dp),
@@ -1666,6 +1677,13 @@ private fun GoogleTvSetupDialog(
                     ) {
                         Text("Pair")
                     }
+                }
+                state.pairingStatusMessage?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (state.pairingStatusIsError) DangerRed else SecondaryText
+                    )
                 }
                 Text(
                     text = "The pairing window lasts about a minute. If it expires, start pairing again for a new code.",
