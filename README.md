@@ -34,8 +34,8 @@ Personal-use Android remote for a TCL Roku TV plus an Onn Google TV box.
 
 ## Verification
 
-Run from `C:\Workspace\Project_Android`:
+Run from the repository root:
 
 ```powershell
-.\gradlew.bat -p .\RGRemote assembleDebug
+.\gradlew.bat assembleDebug
 ```

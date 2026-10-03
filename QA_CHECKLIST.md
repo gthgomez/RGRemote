@@ -2,10 +2,9 @@
 
 ## Build
 
-- Run from `C:\Workspace\Project_Android`.
-- `.\gradlew.bat -p .\RGRemote assembleDebug` succeeds.
-- `.\gradlew.bat -p .\RGRemote assembleRelease` succeeds when release testing is in scope.
-- Root `Project_Android` settings includes `includeBuild("RGRemote")`.
+- Run from the repository root.
+- `.\gradlew.bat assembleDebug` succeeds.
+- `.\gradlew.bat assembleRelease` succeeds when release testing is in scope.
 - No build file declares `kotlin.android`.
 - `local.properties` and keystore secrets are not documented or staged.
 
@@ -15,7 +14,7 @@
 - `apksigner verify --print-certs` passes.
 - Temporary local release-testing builds show signer `C=US, O=Android, CN=Android Debug`.
 - Debug signer is treated as a blocker for production/public distribution.
-- `adb install -r .\RGRemote\app\build\outputs\apk\release\app-release.apk` succeeds on a test device.
+- `adb install -r .\app\build\outputs\apk\release\app-release.apk` succeeds on a test device.
 - App launches after install without clearing required paired-device state unexpectedly.
 
 ## Roku MVP

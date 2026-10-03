@@ -2,7 +2,7 @@
 
 Last verified against local source: 2026-05-15.
 
-RGRemote is a personal Android remote app for a TCL Roku TV and an Onn Google TV box. It lives under `C:\Workspace\Project_Android\RGRemote` and inherits the root workspace policy plus the `Project_Android` context. This file is repo-local context only; it does not override root safety, approval, verification, or truthfulness rules.
+RGRemote is a personal Android remote app for a TCL Roku TV and an Onn Google TV box. This file is repo-local context only; it does not override workspace or repository instruction authority (`AGENTS.md`).
 
 ## Scope
 
@@ -42,7 +42,7 @@ See `docs/ui-target.md` for the active visual target.
 
 ## Build And Release State
 
-- Build from `C:\Workspace\Project_Android` with `.\gradlew.bat -p .\RGRemote assembleDebug`.
+- Build from the repository root with `.\gradlew.bat assembleDebug`.
 - Release testing currently uses Android debug signing credentials in `app/build.gradle.kts`.
 - Debug-signed release APKs are for local testing only. Remove debug signing and use a real release keystore before production or distribution.
 - `local.properties` is local machine state and must not be committed or copied into docs.
