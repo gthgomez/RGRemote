@@ -12,17 +12,17 @@ This makes `assembleRelease` produce an installable release-variant APK without 
 
 ## Build Commands
 
-Run from `C:\Workspace\Project_Android`:
+Run from the repository root:
 
 ```powershell
-.\gradlew.bat -p .\RGRemote assembleDebug
-.\gradlew.bat -p .\RGRemote assembleRelease
+.\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
 Release APK output:
 
 ```text
-C:\Workspace\Project_Android\RGRemote\app\build\outputs\apk\release\app-release.apk
+app\build\outputs\apk\release\app-release.apk
 ```
 
 ## Signature Verification
@@ -30,7 +30,7 @@ C:\Workspace\Project_Android\RGRemote\app\build\outputs\apk\release\app-release.
 Example with Android SDK build-tools 36.0.0:
 
 ```powershell
-$env:ANDROID_HOME\build-tools\36.0.0\apksigner.bat verify --print-certs .\RGRemote\app\build\outputs\apk\release\app-release.apk
+$env:ANDROID_HOME\build-tools\36.0.0\apksigner.bat verify --print-certs .\app\build\outputs\apk\release\app-release.apk
 ```
 
 Expected for the temporary test build:
@@ -46,14 +46,14 @@ If the signer is not Android Debug, verify whether production signing has intent
 ## Install Command
 
 ```powershell
-adb install -r .\RGRemote\app\build\outputs\apk\release\app-release.apk
+adb install -r .\app\build\outputs\apk\release\app-release.apk
 ```
 
 If install fails because a debug build is already installed with a different variant/signature, uninstall the local app only after confirming there is no data you need to preserve:
 
 ```powershell
 adb uninstall com.rgremote.app
-adb install .\RGRemote\app\build\outputs\apk\release\app-release.apk
+adb install .\app\build\outputs\apk\release\app-release.apk
 ```
 
 ## Production Signing Warning

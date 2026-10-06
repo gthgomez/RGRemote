@@ -67,8 +67,7 @@ The entire Remote tab scrolls as one column: header → banner → hero card →
 ### Verify
 
 ```powershell
-cd C:\Workspace\Project_Android
-.\gradlew.bat -p .\RGRemote assembleDebug
+.\gradlew.bat assembleDebug
 ```
 
 Manual: Remote tab, utilities off, guide off, font scale 1.0 and 1.3.
