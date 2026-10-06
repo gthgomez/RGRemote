@@ -86,11 +86,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
@@ -121,13 +123,13 @@ internal fun NeoBottomNavigation(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BottomNavItem(Icons.Default.Tv, "Remote", selected = selectedTab == RemoteTab.REMOTE, accent = accent) {
+            BottomNavItem(Icons.Default.Tv, stringResource(R.string.nav_remote), selected = selectedTab == RemoteTab.REMOTE, accent = accent) {
                 onSelectTab(RemoteTab.REMOTE)
             }
-            BottomNavItem(Icons.Default.Apps, "Apps", selected = selectedTab == RemoteTab.APPS, accent = accent) {
+            BottomNavItem(Icons.Default.Apps, stringResource(R.string.nav_apps), selected = selectedTab == RemoteTab.APPS, accent = accent) {
                 onSelectTab(RemoteTab.APPS)
             }
-            BottomNavItem(Icons.Default.Settings, "Settings", selected = selectedTab == RemoteTab.SETTINGS, accent = accent) {
+            BottomNavItem(Icons.Default.Settings, stringResource(R.string.nav_settings), selected = selectedTab == RemoteTab.SETTINGS, accent = accent) {
                 onSelectTab(RemoteTab.SETTINGS)
             }
         }

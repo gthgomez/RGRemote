@@ -1,3 +1,210 @@
 <resources>
     <string name="app_name">RGRemote</string>
+
+    <!-- Common actions and labels -->
+    <string name="common_cancel">Cancel</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_done">Done</string>
+    <string name="common_add">Add</string>
+    <string name="common_save">Save</string>
+    <string name="common_scan">Scan</string>
+    <string name="common_scanning">Scanning...</string>
+    <string name="common_add_by_ip">Add by IP</string>
+
+    <!-- Bottom navigation -->
+    <string name="nav_remote">Remote</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Ecosystem names -->
+    <string name="ecosystem_roku">Roku</string>
+    <string name="ecosystem_google_tv">Google TV</string>
+
+    <!-- Remote screen -->
+    <string name="remote_no_device_selected">No device selected</string>
+    <string name="remote_cd_device_actions">Device Actions</string>
+    <string name="remote_back">Back</string>
+    <string name="remote_home">Home</string>
+    <string name="remote_wake">Wake</string>
+    <string name="remote_power">Power</string>
+    <string name="remote_mute">Mute</string>
+    <string name="remote_play_pause">PLAY / PAUSE</string>
+    <string name="remote_volume_up">Volume up</string>
+    <string name="remote_volume_down">Volume down</string>
+    <string name="remote_vol">VOL</string>
+    <string name="remote_up">Up</string>
+    <string name="remote_down">Down</string>
+    <string name="remote_left">Left</string>
+    <string name="remote_right">Right</string>
+    <string name="remote_ok">OK</string>
+
+    <!-- Remote utilities dock / offline state -->
+    <string name="offline_device_status">%1$s is %2$s</string>
+    <string name="offline_hint">Shortcuts are disabled while the TV is unreachable. Check its power and network connection.</string>
+    <string name="utilities_title">Utilities</string>
+    <string name="utilities_cd_expand">Expand utilities</string>
+    <string name="utilities_cd_collapse">Collapse utilities</string>
+    <string name="section_hdmi_inputs">HDMI INPUTS</string>
+    <string name="section_launch">LAUNCH</string>
+    <string name="section_launch_app">LAUNCH APP</string>
+    <string name="launch_placeholder_package">Package name or deep link</string>
+    <string name="launch_placeholder_channel">Channel ID or deep link</string>
+    <string name="shortcuts_title">Shortcuts</string>
+    <string name="shortcuts_apps_link">Apps</string>
+    <string name="qa_pin_apps_hint">Pin apps in Apps tab</string>
+
+    <!-- Device header -->
+    <string name="header_no_device">No device</string>
+    <string name="header_cd_switch_device">Switch device</string>
+    <string name="header_no_devices_found">No devices found</string>
+    <string name="header_cd_more_actions">More actions</string>
+    <string name="header_menu_scan">Scan devices</string>
+    <string name="header_menu_refresh_status">Refresh status</string>
+    <string name="header_menu_connection_guide">Connection guide</string>
+    <string name="subtitle_controlling">Controlling: %1$s</string>
+    <string name="subtitle_no_device">No device selected — open Remote</string>
+    <string name="segment_scan_to_add">Scan to add a TV</string>
+    <string name="segment_cd_more_devices">More %1$s devices</string>
+    <string name="chip_roku_tv">Roku TV</string>
+    <string name="chip_scan">Scan</string>
+    <string name="device_fallback_tcl_roku">TCL Roku TV</string>
+    <string name="device_onn_google_tv">Onn Google TV</string>
+    <string name="device_detail_paired">Paired</string>
+    <string name="device_detail_tap_to_pair">Tap to pair</string>
+    <string name="device_detail_map_hdmi">Map HDMI</string>
+    <string name="device_detail_scan_on_wifi">Scan on Wi-Fi</string>
+
+    <!-- Permission dialogs (MainActivity) -->
+    <string name="perm_wifi_title">Nearby Wi-Fi devices</string>
+    <string name="perm_wifi_message">RGRemote scans your local Wi-Fi network to find Roku TVs and Google TV boxes on the same LAN. This permission is used for device discovery only—not for location tracking. The app declares neverForLocation in the manifest.</string>
+    <string name="perm_wifi_continue">Continue</string>
+    <string name="perm_not_now">Not now</string>
+    <string name="perm_denied_title">Local network access needed</string>
+    <string name="perm_denied_message">RGRemote needs nearby-network access to find and control TVs on your Wi-Fi network. Without it, device discovery finds nothing.\n\nYou previously denied this permission, so Android can\'t ask again from here. You can enable Nearby devices for RGRemote in system Settings.</string>
+    <string name="perm_open_settings">Open Settings</string>
+
+    <!-- Setup guide banner -->
+    <string name="guide_banner_title">Connection guide</string>
+    <string name="guide_banner_hide">Hide</string>
+    <string name="guide_banner_guide">Guide</string>
+
+    <!-- Removal confirmation dialog -->
+    <string name="removed_device_title">Remove saved TV?</string>
+    <string name="removed_device_confirm">%1$s (%2$s) will be removed from this phone. You can re-add it by scanning or Add by IP.</string>
+    <string name="removed_app_title">Remove pinned app?</string>
+    <string name="removed_app_confirm">\"%1$s\" will be removed from your pinned shortcuts.</string>
+
+    <!-- Setup guide dialog -->
+    <string name="setup_guide_title">Connect Your TV</string>
+    <string name="setup_guide_intro">Set up Roku first, then pair the Google TV box and map its HDMI input.</string>
+    <string name="guide_step_1_title">Prepare the network</string>
+    <string name="guide_step_1_body">Put the phone, Roku TV, and Google TV box on the same Wi-Fi or subnet. Avoid guest Wi-Fi, VPN isolation, and router settings that block local device discovery.</string>
+    <string name="guide_step_2_title">Enable Roku mobile control</string>
+    <string name="guide_step_2_body">On the Roku TV, open Settings > System > Advanced system settings > Control by mobile apps > Network access, then choose Enabled or Permissive.</string>
+    <string name="guide_step_3_title">Find the Roku TV</string>
+    <string name="guide_step_3_body_connected">Roku is connected: %1$s.</string>
+    <string name="guide_step_3_body_scan">Tap Scan Devices. If multicast discovery is blocked, use Add by IP with the Roku address and port 8060.</string>
+    <string name="guide_step_4_title">Pair Google TV</string>
+    <string name="guide_step_4_body_paired">Google TV is paired and ready for app/navigation commands.</string>
+    <string name="guide_step_4_body_discovered">Start pairing, then enter the 6-character PIN shown on the Google TV screen.</string>
+    <string name="guide_step_4_body_missing">Keep Google TV on the same network. If discovery does not appear, add its IP address on port 6466.</string>
+    <string name="guide_step_5_title">Map the HDMI input</string>
+    <string name="guide_step_5_body_mapped">Mapped input: %1$s.</string>
+    <string name="guide_step_5_body_pick">Pick the Roku HDMI port where the Google TV box is plugged in before using Watch Google TV.</string>
+    <string name="guide_pair_hdmi">Pair / HDMI</string>
+
+    <!-- Saved TVs summary -->
+    <string name="saved_summary_title">Saved on this phone</string>
+    <string name="saved_summary_line">%1$s · %2$s · %3$s</string>
+    <string name="saved_summary_duplicates_hint">If you see duplicates after reinstall, open Settings and tap Merge duplicate TVs.</string>
+
+    <!-- Apps panel -->
+    <string name="apps_roku_title">Roku shortcuts</string>
+    <string name="apps_google_title">Google TV shortcuts</string>
+    <string name="apps_roku_subtitle">Refresh from your Roku, then pin favorites.</string>
+    <string name="apps_google_subtitle">Add friendly names for package names or deep links.</string>
+    <string name="apps_refresh">Refresh</string>
+    <string name="apps_refreshing">Refreshing</string>
+    <string name="apps_no_roku_pins">No pinned Roku channels yet.</string>
+    <string name="apps_no_google_pins">No pinned Google TV apps yet.</string>
+    <string name="apps_google_empty_hint">With utilities hidden on Remote, launch apps from pins here or expand Utilities on Remote.</string>
+    <string name="apps_cd_edit_app">Edit app</string>
+    <string name="apps_cd_remove_app">Remove app</string>
+
+    <!-- Roku channel picker -->
+    <string name="channels_available">Available channels</string>
+    <string name="channels_refresh">Refresh Channels</string>
+    <string name="channels_refreshing">Refreshing...</string>
+    <string name="channels_empty_hint">Tap Refresh Channels to read installed Roku apps.</string>
+    <string name="channels_roku_id">Roku ID %1$s</string>
+    <string name="channels_pinned">Pinned</string>
+    <string name="channels_pin">Pin</string>
+
+    <!-- Settings panel -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_devices_title">Devices</string>
+    <string name="settings_devices_body">Use the setup guide first, then scan or add a known IP address.</string>
+    <string name="settings_connection_guide">Connection Guide</string>
+    <string name="settings_scan_devices">Scan Devices</string>
+    <string name="settings_refresh_status">Refresh Status</string>
+    <string name="settings_merge_duplicates">Merge duplicate TVs</string>
+    <string name="settings_startup_title">Startup</string>
+    <string name="settings_startup_body">Choose which screen RGRemote opens on when you launch the app.</string>
+    <string name="settings_startup_last">Remember last screen</string>
+    <string name="settings_startup_remote">Always open Remote</string>
+    <string name="settings_startup_apps">Always open Apps</string>
+    <string name="settings_startup_settings">Always open Settings</string>
+    <string name="settings_remote_title">Remote screen</string>
+    <string name="settings_remote_body">Hide sections on the Remote tab to keep the controller in focus.</string>
+    <string name="settings_pref_guide_banner">Connection guide banner</string>
+    <string name="settings_pref_utilities">Utilities (HDMI &amp; launch)</string>
+    <string name="settings_saved_title">Saved TVs</string>
+    <string name="settings_saved_body">One entry per TV type is shown on Remote. Remove extras here if needed.</string>
+    <string name="settings_active_title">Active Device</string>
+    <string name="settings_active_none">No device selected.</string>
+    <string name="settings_pair_google">Pair Google TV</string>
+    <string name="settings_google_pairing_hdmi">Google TV Pairing &amp; HDMI</string>
+    <string name="settings_privacy_title">Privacy</string>
+    <string name="settings_privacy_body">All control traffic stays on your local network. RGRemote does not require an account or send your data to our servers. Google TV pairing keys are stored in Android Keystore on this phone. Nearby Wi-Fi access is declared neverForLocation—it is used to discover TVs on your LAN, not to track your location.</string>
+    <string name="settings_privacy_note">Saved TVs, HDMI mappings, and pinned shortcuts stay on this device only.</string>
+    <string name="settings_diagnostics_title">Diagnostics</string>
+    <string name="settings_diagnostics_note">Technical details stay here instead of the remote screen.</string>
+    <string name="settings_app_buttons_title">App Buttons</string>
+    <string name="settings_app_buttons_body">Pinned buttons are local to this phone. Roku pins come from discovered channel IDs; Google TV pins use package names or deep links.</string>
+    <string name="settings_open_apps">Open Apps</string>
+    <string name="settings_reset_buttons">Reset Buttons</string>
+
+    <!-- Manual device (Add by IP) dialog -->
+    <string name="manual_add_title">Add Device by IP</string>
+    <string name="manual_hint_roku">Roku will be checked with ECP on port 8060.</string>
+    <string name="manual_hint_google">Google TV will be saved on port 6466 and verified during pairing.</string>
+    <string name="manual_label_address">IP address or host</string>
+    <string name="manual_placeholder_roku">192.168.1.50:8060</string>
+    <string name="manual_placeholder_google">192.168.1.60:6466</string>
+    <string name="manual_label_name">Optional name</string>
+    <string name="manual_placeholder_name_roku">Living Room Roku</string>
+    <string name="manual_checking">Checking...</string>
+    <string name="manual_probe_progress_fallback">Checking that address for a Roku…</string>
+    <string name="manual_add_failed_fallback">Couldn\'t reach that address. Check it and try again.</string>
+
+    <!-- Google TV app dialog -->
+    <string name="gtapp_add_title">Add Google TV App</string>
+    <string name="gtapp_edit_title">Edit Google TV App</string>
+    <string name="gtapp_body">Use a friendly name and the Android TV package name or a deep link. Examples: com.netflix.ninja, com.google.android.youtube.tv, plex://</string>
+    <string name="gtapp_label_name">Button name</string>
+    <string name="gtapp_placeholder_name">YouTube</string>
+    <string name="gtapp_placeholder_target">com.google.android.youtube.tv</string>
+
+    <!-- Google TV setup dialog -->
+    <string name="gtsetup_title">Google TV Setup</string>
+    <string name="gtsetup_paired_msg">Google TV is paired. Start again only if you need to re-pair.</string>
+    <string name="gtsetup_session_msg">Pairing started. Enter the 6-character code shown on your TV (letters and numbers).</string>
+    <string name="gtsetup_start_msg">Start pairing, then enter the 6-character code shown on your TV (letters and numbers).</string>
+    <string name="gtsetup_label_code">Code</string>
+    <string name="gtsetup_re_pair">Re-pair</string>
+    <string name="gtsetup_start">Start</string>
+    <string name="gtsetup_pair">Pair</string>
+    <string name="gtsetup_expiry_note">The pairing window lasts about a minute. If it expires, start pairing again for a new code.</string>
+    <string name="gtsetup_hdmi_note">Pick the Roku TV HDMI input where the Onn box is plugged in.</string>
+    <string name="gtsetup_port_selected">%1$s selected</string>
 </resources>

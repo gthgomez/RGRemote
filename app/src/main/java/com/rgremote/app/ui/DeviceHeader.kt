@@ -89,11 +89,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
@@ -178,7 +180,7 @@ internal fun ActiveDeviceHeader(
                                 .padding(vertical = 2.dp)
                         ) {
                             Text(
-                                text = selected?.friendlyName ?: "No device",
+                                text = selected?.friendlyName ?: stringResource(R.string.header_no_device),
                                 style = if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = PrimaryText,
@@ -188,7 +190,7 @@ internal fun ActiveDeviceHeader(
                             Spacer(modifier = Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Default.KeyboardArrowDown,
-                                contentDescription = "Switch device",
+                                contentDescription = stringResource(R.string.header_cd_switch_device),
                                 tint = PrimaryText.copy(alpha = 0.7f),
                                 modifier = Modifier.size(16.dp)
                             )
@@ -214,7 +216,7 @@ internal fun ActiveDeviceHeader(
                                 }
                                 if (state.devices.isEmpty()) {
                                     DropdownMenuItem(
-                                        text = { Text("No devices found") },
+                                        text = { Text(stringResource(R.string.header_no_devices_found)) },
                                         onClick = { deviceMenuExpanded = false },
                                         enabled = false
                                     )
@@ -248,7 +250,7 @@ internal fun ActiveDeviceHeader(
                 Box {
                     RoundIconButton(
                         icon = Icons.Default.MoreVert,
-                        label = "More actions",
+                        label = stringResource(R.string.header_cd_more_actions),
                         accent = accent,
                         enabled = true,
                         size = if (compact) 38.dp else 42.dp,
@@ -306,7 +308,7 @@ internal fun HeaderOverflowMenu(
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(
-            text = { Text(if (state.isScanning) "Scanning..." else "Scan devices") },
+            text = { Text(if (state.isScanning) stringResource(R.string.common_scanning) else stringResource(R.string.header_menu_scan)) },
             onClick = {
                 onDismiss()
                 if (!state.isScanning) onScan()
@@ -315,7 +317,7 @@ internal fun HeaderOverflowMenu(
             leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
         )
         DropdownMenuItem(
-            text = { Text("Refresh status") },
+            text = { Text(stringResource(R.string.header_menu_refresh_status)) },
             onClick = {
                 onDismiss()
                 onRefreshStatus()
@@ -324,7 +326,7 @@ internal fun HeaderOverflowMenu(
             leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
         )
         DropdownMenuItem(
-            text = { Text("Connection guide") },
+            text = { Text(stringResource(R.string.header_menu_connection_guide)) },
             onClick = {
                 onDismiss()
                 onOpenSetupGuide()
@@ -344,9 +346,13 @@ internal fun ActiveTvSubtitle(
     val text = when {
         device != null -> {
             val name = device.friendlyName.trim()
-            if (name.isNotEmpty()) "Controlling: $name" else "Controlling: ${if (device.type == DeviceType.ROKU_TV) "Roku" else "Google TV"}"
+            if (name.isNotEmpty()) stringResource(R.string.subtitle_controlling, name)
+            else stringResource(
+                R.string.subtitle_controlling,
+                if (device.type == DeviceType.ROKU_TV) stringResource(R.string.ecosystem_roku) else stringResource(R.string.ecosystem_google_tv)
+            )
         }
-        else -> "No device selected — open Remote"
+        else -> stringResource(R.string.subtitle_no_device)
     }
     Text(
         text = text,
@@ -385,7 +391,7 @@ internal fun EcosystemSegmentBar(
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "Scan to add a TV",
+                text = stringResource(R.string.segment_scan_to_add),
                 style = MaterialTheme.typography.labelMedium,
                 color = SecondaryText
             )
@@ -400,7 +406,7 @@ internal fun EcosystemSegmentBar(
         if (rokus.isNotEmpty()) {
             SegmentGroup(
                 modifier = Modifier.weight(1f),
-                label = "Roku",
+                label = stringResource(R.string.ecosystem_roku),
                 devices = rokus,
                 selectedId = selected?.id,
                 accent = RokuPrimary,
@@ -414,7 +420,7 @@ internal fun EcosystemSegmentBar(
                 !state.pairedDeviceIds.contains(primaryGoogle.id) || primaryGoogle.hdmiPortMapping == null
             SegmentGroup(
                 modifier = Modifier.weight(1f),
-                label = "Google TV",
+                label = stringResource(R.string.ecosystem_google_tv),
                 devices = googles,
                 selectedId = selected?.id,
                 accent = GooglePrimary,
@@ -465,7 +471,7 @@ private fun SegmentGroup(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "More $label devices",
+                            contentDescription = stringResource(R.string.segment_cd_more_devices, label),
                             tint = accent.copy(alpha = 0.9f),
                             modifier = Modifier.size(20.dp)
                         )
@@ -588,8 +594,8 @@ private fun DeviceSwitcherGrid(
         ) {
             CompactDeviceChip(
                 modifier = Modifier.weight(1f),
-                label = "Roku TV",
-                detail = "Scan",
+                label = stringResource(R.string.chip_roku_tv),
+                detail = stringResource(R.string.chip_scan),
                 deviceType = DeviceType.ROKU_TV,
                 selected = false,
                 enabled = false,
@@ -598,8 +604,8 @@ private fun DeviceSwitcherGrid(
             )
             CompactDeviceChip(
                 modifier = Modifier.weight(1f),
-                label = "Google TV",
-                detail = "Scan",
+                label = stringResource(R.string.ecosystem_google_tv),
+                detail = stringResource(R.string.chip_scan),
                 deviceType = DeviceType.GOOGLE_TV,
                 selected = false,
                 enabled = false,
@@ -733,26 +739,26 @@ internal fun DeviceTiles(
     ) {
         EcosystemDeviceCard(
             modifier = Modifier.weight(1f),
-            fallbackTitle = "TCL Roku TV",
+            fallbackTitle = stringResource(R.string.device_fallback_tcl_roku),
             platformLabel = "Roku TV",
             device = state.rokuDevice,
             selected = state.selectedDevice?.type == DeviceType.ROKU_TV,
-            detail = state.rokuDevice?.let { "${it.ipAddress}:${it.port}" } ?: "Scan on Wi-Fi",
+            detail = state.rokuDevice?.let { "${it.ipAddress}:${it.port}" } ?: stringResource(R.string.device_detail_scan_on_wifi),
             primary = RokuPrimary,
             accent = RokuAccent,
             onClick = { device -> onSelect(device.id) }
         )
         EcosystemDeviceCard(
             modifier = Modifier.weight(1f),
-            fallbackTitle = "Onn Google TV",
+            fallbackTitle = stringResource(R.string.device_onn_google_tv),
             platformLabel = "Google TV",
             device = state.googleTvDevice,
             selected = state.selectedDevice?.type == DeviceType.GOOGLE_TV,
             detail = state.googleTvDevice?.let { google ->
-                val mapped = google.hdmiPortMapping?.displayName ?: "Map HDMI"
-                val paired = if (state.pairedDeviceIds.contains(google.id)) "Paired" else "Tap to pair"
+                val mapped = google.hdmiPortMapping?.displayName ?: stringResource(R.string.device_detail_map_hdmi)
+                val paired = if (state.pairedDeviceIds.contains(google.id)) stringResource(R.string.device_detail_paired) else stringResource(R.string.device_detail_tap_to_pair)
                 "$paired / $mapped"
-            } ?: "Scan on Wi-Fi",
+            } ?: stringResource(R.string.device_detail_scan_on_wifi),
             primary = GooglePrimary,
             accent = GoogleAccent,
             onClick = onGoogleTileClick

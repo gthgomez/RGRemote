@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.rgremote.app.di.AppContainer
@@ -110,16 +111,12 @@ class MainActivity : ComponentActivity() {
             return
         }
         AlertDialog.Builder(this)
-            .setTitle("Nearby Wi-Fi devices")
-            .setMessage(
-                "RGRemote scans your local Wi-Fi network to find Roku TVs and Google TV boxes on the same LAN. " +
-                    "This permission is used for device discovery only—not for location tracking. " +
-                    "The app declares neverForLocation in the manifest."
-            )
-            .setPositiveButton("Continue") { _, _ ->
+            .setTitle(getString(R.string.perm_wifi_title))
+            .setMessage(getString(R.string.perm_wifi_message))
+            .setPositiveButton(getString(R.string.perm_wifi_continue)) { _, _ ->
                 nearbyWifiPermissionLauncher.launch(permission)
             }
-            .setNegativeButton("Not now") { _, _ ->
+            .setNegativeButton(getString(R.string.perm_not_now)) { _, _ ->
                 viewModel.onNearbyWifiPermissionResult(granted = false)
             }
             .setCancelable(false)
@@ -176,20 +173,15 @@ private fun PermanentDenialSettingsDialog(
     if (!visible) return
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Local network access needed") },
+        title = { Text(stringResource(R.string.perm_denied_title)) },
         text = {
-            Text(
-                "RGRemote needs nearby-network access to find and control TVs on your Wi-Fi network. " +
-                    "Without it, device discovery finds nothing.\n\n" +
-                    "You previously denied this permission, so Android can't ask again from here. " +
-                    "You can enable Nearby devices for RGRemote in system Settings."
-            )
+            Text(stringResource(R.string.perm_denied_message))
         },
         confirmButton = {
-            TextButton(onClick = onOpenSettings) { Text("Open Settings") }
+            TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.perm_open_settings)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Not now") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.perm_not_now)) }
         },
     )
 }

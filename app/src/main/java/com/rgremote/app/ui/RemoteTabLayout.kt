@@ -17,8 +17,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.HdmiPort
@@ -139,14 +141,19 @@ internal fun RemoteTabLayout(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = state.selectedDevice?.let { "${it.friendlyName} is ${state.connectionStatus.label.lowercase()}" }
-                                ?: state.connectionStatus.label,
+                            text = state.selectedDevice?.let {
+                                stringResource(
+                                    R.string.offline_device_status,
+                                    it.friendlyName,
+                                    state.connectionStatus.label.lowercase()
+                                )
+                            } ?: state.connectionStatus.label,
                             style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                             color = PrimaryText
                         )
                         Text(
-                            text = "Shortcuts are disabled while the TV is unreachable. Check its power and network connection.",
+                            text = stringResource(R.string.offline_hint),
                             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                             color = SecondaryText,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
