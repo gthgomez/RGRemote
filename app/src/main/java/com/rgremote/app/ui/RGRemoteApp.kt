@@ -188,6 +188,7 @@ private fun RGRemoteScreen(
     var showGoogleTvAppDialog by rememberSaveable { mutableStateOf(false) }
     var showManualDeviceDialog by rememberSaveable { mutableStateOf(false) }
     var showSetupGuideDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingRemoval by remember { mutableStateOf<PendingRemoval?>(null) }
     var manualAddAttempt by remember { mutableStateOf<ManualAddAttempt?>(null) }
     var manualSawProbe by remember { mutableStateOf(false) }
     var manualInlineMessage by remember { mutableStateOf<String?>(null) }
@@ -380,7 +381,7 @@ private fun RGRemoteScreen(
                                     editingGoogleTvApp = null
                                     showGoogleTvAppDialog = true
                                 },
-                                onRemovePinnedApp = onRemovePinnedApp
+                                onRemovePinnedApp = { pendingRemoval = PendingRemoval.App(it) }
                             )
                             Spacer(Modifier.height(18.dp))
                         }
@@ -418,7 +419,10 @@ private fun RGRemoteScreen(
                                 onSetShowConnectionGuide = onSetShowConnectionGuide,
                                 onSetShowUtilitiesDock = onSetShowUtilitiesDock,
                                 onSetStartupScreen = onSetStartupScreen,
-                                onRemoveSavedDevice = onRemoveSavedDevice,
+                                onRemoveSavedDevice = { id ->
+                                    state.devices.firstOrNull { device -> device.id == id }
+                                        ?.let { device -> pendingRemoval = PendingRemoval.Device(device) }
+                                },
                                 onDedupeSavedDevices = onDedupeSavedDevices
                             )
                             Spacer(Modifier.height(18.dp))
@@ -473,6 +477,15 @@ private fun RGRemoteScreen(
                 manualInlineIsError = false
                 onAddManualDevice(type, address, name)
             }
+        )
+    }
+
+    if (pendingRemoval != null) {
+        ConfirmRemovalDialog(
+            removal = pendingRemoval!!,
+            onDismiss = { pendingRemoval = null },
+            onConfirmDevice = onRemoveSavedDevice,
+            onConfirmApp = onRemovePinnedApp
         )
     }
 
@@ -562,6 +575,60 @@ private fun SetupGuideBanner(
             }
         }
     }
+}
+
+/** Pending destructive removal awaiting user confirmation. */
+private sealed interface PendingRemoval {
+    data class Device(val device: RegisteredDevice) : PendingRemoval
+    data class App(val app: AppLaunchTarget) : PendingRemoval
+}
+
+@Composable
+private fun ConfirmRemovalDialog(
+    removal: PendingRemoval,
+    onDismiss: () -> Unit,
+    onConfirmDevice: (String) -> Unit,
+    onConfirmApp: (AppLaunchTarget) -> Unit,
+) {
+    val title: String
+    val message: String
+    val onConfirm: () -> Unit
+    when (removal) {
+        is PendingRemoval.Device -> {
+            title = "Remove saved TV?"
+            message = "${removal.device.friendlyName} (${removal.device.ipAddress}) will be removed from this phone. You can re-add it by scanning or Add by IP."
+            onConfirm = { onConfirmDevice(removal.device.id) }
+        }
+        is PendingRemoval.App -> {
+            title = "Remove pinned app?"
+            message = "\"${removal.app.displayName}\" will be removed from your pinned shortcuts."
+            onConfirm = { onConfirmApp(removal.app) }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                colors = ButtonDefaults.buttonColors(containerColor = DangerRed, contentColor = Color.White),
+                onClick = {
+                    onConfirm()
+                    onDismiss()
+                }
+            ) {
+                Text("Remove")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        title = { Text(title) },
+        text = { Text(message) },
+        containerColor = NeoSurface,
+        titleContentColor = PrimaryText,
+        textContentColor = SecondaryText
+    )
 }
 
 @Composable
@@ -1161,13 +1228,12 @@ private fun SettingsPanel(
                 body = "Choose which screen RGRemote opens on when you launch the app.",
                 accent = accent
             ) {
-                var startupChoice by rememberSaveable { mutableStateOf(STARTUP_CHOICE_UNSET) }
+                val startupChoice = state.startupScreen?.name ?: STARTUP_CHOICE_LAST_SCREEN
                 StartupChoiceRow(
                     label = "Remember last screen",
                     selected = startupChoice == STARTUP_CHOICE_LAST_SCREEN,
                     accent = accent,
                     onSelect = {
-                        startupChoice = STARTUP_CHOICE_LAST_SCREEN
                         onSetStartupScreen(null)
                     }
                 )
@@ -1180,10 +1246,7 @@ private fun SettingsPanel(
                         label = label,
                         selected = startupChoice == tab.name,
                         accent = accent,
-                        onSelect = {
-                            startupChoice = tab.name
-                            onSetStartupScreen(tab)
-                        }
+                        onSelect = { onSetStartupScreen(tab) }
                     )
                 }
             }
@@ -1326,7 +1389,6 @@ private fun PreferenceSwitchRow(
     }
 }
 
-private const val STARTUP_CHOICE_UNSET = "unset"
 private const val STARTUP_CHOICE_LAST_SCREEN = "last"
 
 @Composable
@@ -1626,7 +1688,7 @@ private fun GoogleTvSetupDialog(
             }
         },
         title = {
-            Text("Onn Google TV Setup")
+            Text("Google TV Setup")
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {

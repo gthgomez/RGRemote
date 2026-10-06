@@ -100,6 +100,7 @@ data class RGRemoteUiState(
     val rokuPowerModeByDeviceId: Map<String, String> = emptyMap(),
     val showConnectionGuide: Boolean = true,
     val showUtilitiesDock: Boolean = true,
+    val startupScreen: RemoteTab? = null,
     val setupIncomplete: Boolean = true,
 ) {
     val inferredHdmiPort: HdmiPort?
@@ -208,13 +209,14 @@ class RGRemoteViewModel(
             combine(
                 uiPreferences.showConnectionGuide,
                 uiPreferences.showUtilitiesDock,
+                uiPreferences.startupTab,
                 localState,
-            ) { showGuide, showUtilities, state ->
-                Triple(showGuide, showUtilities, state)
+            ) { showGuide, showUtilities, startupTab, state ->
+                UiSnapshot(showGuide, showUtilities, startupTab, state)
             },
         ) { deviceSnapshot, uiSnapshot ->
             val (devices, pairedIds, pins) = deviceSnapshot
-            val (showGuide, showUtilities, state) = uiSnapshot
+            val (showGuide, showUtilities, startupTab, state) = uiSnapshot
             val canonical = devices.canonicalDevicesPerType()
             val persistedId = uiPreferences.selectedDeviceId
             val selected = state.selectedDeviceId
@@ -236,6 +238,7 @@ class RGRemoteViewModel(
                     canonical.any { it.type == DeviceType.GOOGLE_TV && it.id !in pairedIds },
                 showConnectionGuide = showGuide,
                 showUtilitiesDock = showUtilities,
+                startupScreen = startupTab,
             )
         }
         .onStart {
@@ -316,7 +319,7 @@ class RGRemoteViewModel(
     }
 
     fun setStartupScreen(tab: RemoteTab?) {
-        uiPreferences.setSelectedTab(tab)
+        uiPreferences.setStartupTab(tab)
         feedback.show(
             if (tab == null) {
                 "App will open on the last screen you used"
@@ -755,3 +758,11 @@ class RGRemoteViewModel(
         private const val GOOGLE_TV_NOT_PAIRED_MESSAGE = "Google TV is not paired. Start pairing to connect."
     }
 }
+
+/** Snapshot of the UI-preference flows combined with the local UI state. */
+private data class UiSnapshot(
+    val showGuide: Boolean,
+    val showUtilities: Boolean,
+    val startupTab: RemoteTab?,
+    val state: RGRemoteUiState,
+)

@@ -301,7 +301,7 @@ internal fun RemoteSurface(
                                 label = "Mute",
                                 accent = accentSoft,
                                 enabled = volumeEnabled,
-                                size = 40.dp
+                                size = 48.dp
                             ) {
                                 hapticTrigger { onVolume(VolumeCommand.MUTE) }
                             }
@@ -312,7 +312,7 @@ internal fun RemoteSurface(
                 TransportButton(
                     modifier = Modifier.fillMaxWidth(),
                     icon = Icons.Default.PlayArrow,
-                    label = "PLAY",
+                    label = "PLAY / PAUSE",
                     accent = accentSoft,
                     enabled = enabled,
                     emphasized = false
@@ -420,11 +420,11 @@ internal fun VolumeRail(
                 holdRepeat = true,
                 onClick = onVolumeUp
             )
-            Icon(
-                Icons.AutoMirrored.Filled.VolumeUp,
-                contentDescription = "Volume",
-                tint = accent.copy(alpha = if (enabled) 0.55f else 0.25f),
-                modifier = Modifier.size(buttonSize * 0.5f)
+            Text(
+                text = "VOL",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Black,
+                color = accent.copy(alpha = if (enabled) 0.55f else 0.25f)
             )
             RoundIconButton(
                 icon = Icons.AutoMirrored.Filled.VolumeDown,

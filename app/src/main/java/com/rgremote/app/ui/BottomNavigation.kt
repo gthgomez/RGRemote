@@ -124,11 +124,9 @@ internal fun NeoBottomNavigation(
             BottomNavItem(Icons.Default.Tv, "Remote", selected = selectedTab == RemoteTab.REMOTE, accent = accent) {
                 onSelectTab(RemoteTab.REMOTE)
             }
-            BottomNavDivider()
             BottomNavItem(Icons.Default.Apps, "Apps", selected = selectedTab == RemoteTab.APPS, accent = accent) {
                 onSelectTab(RemoteTab.APPS)
             }
-            BottomNavDivider()
             BottomNavItem(Icons.Default.Settings, "Settings", selected = selectedTab == RemoteTab.SETTINGS, accent = accent) {
                 onSelectTab(RemoteTab.SETTINGS)
             }
@@ -178,14 +176,4 @@ internal fun BottomNavItem(
                 .neoGlow(accent, if (selected) 0.45f else 0f, radius = 8.dp)
         )
     }
-}
-
-@Composable
-private fun BottomNavDivider() {
-    Box(
-        Modifier
-            .width(1.dp)
-            .height(40.dp)
-            .background(Color.White.copy(alpha = 0.08f))
-    )
 }
