@@ -125,21 +125,45 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-internal val NeoBackground = Color(0xFF080B14)
-internal val NeoSurface = Color(0xFF111522)
-internal val NeoCard = Color(0xFF191E2C)
-internal val PrimaryText = Color(0xFFF5F7FA)
-internal val SecondaryText = Color(0xFFA7AFC1)
-internal val SuccessGreen = Color(0xFF42F2A4)
-internal val DangerRed = Color(0xFFFF667B)
-internal val RokuPrimary = Color(0xFF8B5CFF)
-internal val RokuAccent = Color(0xFFC7B6FF)
-internal val GooglePrimary = Color(0xFF38BDF8)
-internal val GoogleAccent = Color(0xFF7DD3FC)
+import com.rgremote.app.ui.theme.RgBackground
+import com.rgremote.app.ui.theme.RgBackgroundDeep
+import com.rgremote.app.ui.theme.RgBackgroundLow
+import com.rgremote.app.ui.theme.RgBlueAccent
+import com.rgremote.app.ui.theme.RgBottomBar
+import com.rgremote.app.ui.theme.RgCard
+import com.rgremote.app.ui.theme.RgDanger
+import com.rgremote.app.ui.theme.RgDpadIcon
+import com.rgremote.app.ui.theme.RgGoogleAccent
+import com.rgremote.app.ui.theme.RgGooglePrimary
+import com.rgremote.app.ui.theme.RgInnerCard
+import com.rgremote.app.ui.theme.RgRokuAccent
+import com.rgremote.app.ui.theme.RgRokuPrimary
+import com.rgremote.app.ui.theme.RgSuccess
+import com.rgremote.app.ui.theme.RgSurface
+import com.rgremote.app.ui.theme.RgTextPrimary
+import com.rgremote.app.ui.theme.RgTextSecondary
+import com.rgremote.app.ui.theme.RgVioletDeep
+
+internal val NeoBackground = RgBackground
+internal val NeoBackgroundDeep = RgBackgroundDeep
+internal val NeoBackgroundLow = RgBackgroundLow
+internal val NeoSurface = RgSurface
+internal val NeoCard = RgCard
+internal val NeoInnerCard = RgInnerCard
+internal val NeoBottomBar = RgBottomBar
+internal val NeoVioletDeep = RgVioletDeep
+internal val PrimaryText = RgTextPrimary
+internal val SecondaryText = RgTextSecondary
+internal val DpadIconTint = RgDpadIcon
+internal val SuccessGreen = RgSuccess
+internal val DangerRed = RgDanger
+internal val RokuPrimary = RgRokuPrimary
+internal val RokuAccent = RgRokuAccent
+internal val GooglePrimary = RgGooglePrimary
+internal val GoogleAccent = RgGoogleAccent
 internal val GlassStroke = Color.White.copy(alpha = 0.10f)
-internal val PurpleGlow = Color(0xFF8B5CFF)
-internal val NeoVioletDeep = Color(0xFF1A0F2E)
-internal val NeoBlueAccent = Color(0xFF5B7CFF)
+internal val PurpleGlow = RgRokuPrimary
+internal val NeoBlueAccent = RgBlueAccent
 
 /** Octagonal D-pad plate shape (reference mockup). */
 internal val OctagonPlateShape: Shape = object : Shape {
@@ -168,8 +192,8 @@ internal data class EcosystemStyle(
     val accent: Color
 )
 
-private val NeutralPrimary = Color(0xFF8B93A7)
-private val NeutralAccent = Color(0xFFB4BAC8)
+private val NeutralPrimary = com.rgremote.app.ui.theme.RgNeutralPrimary
+private val NeutralAccent = com.rgremote.app.ui.theme.RgNeutralAccent
 
 @Composable
 internal fun rememberEcosystemStyle(deviceType: DeviceType?): EcosystemStyle =

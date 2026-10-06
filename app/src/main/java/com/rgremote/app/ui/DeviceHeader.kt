@@ -103,6 +103,8 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
 import com.rgremote.app.domain.VolumeCommand
 
+private val UnselectedChipColor = Color(0xFF303744)
+
 @Composable
 internal fun ActiveDeviceHeader(
     state: RGRemoteUiState,
@@ -777,7 +779,7 @@ internal fun EcosystemDeviceCard(
         label = "deviceCardGlow"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (selected) primary else Color(0xFF303744),
+        targetValue = if (selected) primary else UnselectedChipColor,
         animationSpec = tween(durationMillis = 300),
         label = "deviceCardBorder"
     )

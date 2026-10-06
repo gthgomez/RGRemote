@@ -279,7 +279,7 @@ private fun RGRemoteScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF030713), NeoBackground, Color(0xFF0A1020))
+                        colors = listOf(NeoBackgroundDeep, NeoBackground, NeoBackgroundLow)
                     )
                 )
                 .circuitBoardBackground(accent)
@@ -1111,7 +1111,7 @@ private fun RokuChannelRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = Color(0xFF151922),
+        color = NeoInnerCard,
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
     ) {
         Row(

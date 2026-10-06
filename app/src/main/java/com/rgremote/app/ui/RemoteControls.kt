@@ -130,7 +130,7 @@ internal fun RemoteSurface(
                             listOf(
                                 NeoVioletDeep.copy(alpha = 0.92f),
                                 NeoSurface.copy(alpha = 0.98f),
-                                Color(0xFF060A14)
+                                com.rgremote.app.ui.theme.RgSurfaceDeep
                             )
                         )
                     )
@@ -630,7 +630,7 @@ internal fun DpadButton(
         Icon(
             icon,
             contentDescription = label,
-            tint = if (enabled) Color(0xFFE6DDFF) else SecondaryText.copy(alpha = 0.42f),
+            tint = if (enabled) DpadIconTint else SecondaryText.copy(alpha = 0.42f),
             modifier = Modifier.size(size * 0.58f)
         )
     }
@@ -662,7 +662,7 @@ internal fun OkButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = accent.copy(alpha = 0.32f),
             contentColor = Color.White,
-            disabledContainerColor = Color(0xFF151923),
+            disabledContainerColor = NeoInnerCard,
             disabledContentColor = SecondaryText.copy(alpha = 0.4f)
         ),
         border = BorderStroke(2.dp, accent.copy(alpha = if (enabled) 0.95f else 0.18f)),

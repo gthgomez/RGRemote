@@ -111,7 +111,7 @@ internal fun NeoBottomNavigation(
             .fillMaxWidth()
             .navigationBarsPadding(),
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        color = Color(0xF20B101C),
+        color = NeoBottomBar,
         border = BorderStroke(1.dp, GlassStroke)
     ) {
         Row(
