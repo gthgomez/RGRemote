@@ -90,11 +90,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
@@ -138,13 +140,13 @@ internal fun RemoteShortcutDock(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Shortcuts",
+                text = stringResource(R.string.shortcuts_title),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = SecondaryText
             )
             Text(
-                text = "Apps",
+                text = stringResource(R.string.shortcuts_apps_link),
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable { onSelectTab(RemoteTab.APPS) }
@@ -187,22 +189,26 @@ internal fun RemoteUtilitiesDock(
         onToggle = { utilitiesExpanded = !utilitiesExpanded }
     ) {
         if (ecosystem.type == DeviceType.ROKU_TV) {
-            ActionSectionLabel("HDMI INPUTS")
+            ActionSectionLabel(stringResource(R.string.section_hdmi_inputs))
             InputSwitchPanel(
                 state = state,
                 accent = accent,
                 onSwitchInput = onSwitchInput
             )
         }
-        ActionSectionLabel(if (ecosystem.type == DeviceType.GOOGLE_TV) "LAUNCH APP" else "LAUNCH")
+        ActionSectionLabel(
+            stringResource(
+                if (ecosystem.type == DeviceType.GOOGLE_TV) R.string.section_launch_app else R.string.section_launch
+            )
+        )
         LaunchPanel(
             target = target,
             accent = accent,
             launchLabel = ecosystem.launchLabel,
             placeholder = if (ecosystem.type == DeviceType.GOOGLE_TV) {
-                "Package name or deep link"
+                stringResource(R.string.launch_placeholder_package)
             } else {
-                "Channel ID or deep link"
+                stringResource(R.string.launch_placeholder_channel)
             },
             onTargetChange = onTargetChange,
             onLaunch = onLaunch
@@ -236,14 +242,14 @@ private fun UtilitiesExpander(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Utilities",
+                    text = stringResource(R.string.utilities_title),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = PrimaryText
                 )
                 Icon(
                     imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (expanded) "Collapse utilities" else "Expand utilities",
+                    contentDescription = if (expanded) stringResource(R.string.utilities_cd_collapse) else stringResource(R.string.utilities_cd_expand),
                     tint = accent,
                     modifier = Modifier.size(22.dp)
                 )
@@ -309,7 +315,7 @@ internal fun PinnedQuickActionsRow(
 
     if (pins.isEmpty() && fallbackPresets.isEmpty()) {
         Text(
-            text = "Pin apps in Apps tab",
+            text = stringResource(R.string.qa_pin_apps_hint),
             color = SecondaryText,
             style = MaterialTheme.typography.bodySmall
         )
@@ -471,7 +477,7 @@ private fun PresetLogo(label: String, accent: Color) {
         if (isAdd) {
             Icon(Icons.Default.Add, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
-            Text("Add", color = accent, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+            Text(stringResource(R.string.common_add), color = accent, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
             return
         }
 

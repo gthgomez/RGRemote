@@ -93,11 +93,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.roku.RokuPowerMode
@@ -188,11 +190,14 @@ private fun RGRemoteScreen(
     var showGoogleTvAppDialog by rememberSaveable { mutableStateOf(false) }
     var showManualDeviceDialog by rememberSaveable { mutableStateOf(false) }
     var showSetupGuideDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingRemoval by remember { mutableStateOf<PendingRemoval?>(null) }
     var manualAddAttempt by remember { mutableStateOf<ManualAddAttempt?>(null) }
     var manualSawProbe by remember { mutableStateOf(false) }
     var manualInlineMessage by remember { mutableStateOf<String?>(null) }
     var manualInlineIsError by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val manualProbeProgressFallback = stringResource(R.string.manual_probe_progress_fallback)
+    val manualAddFailedFallback = stringResource(R.string.manual_add_failed_fallback)
     val googleTv = state.googleTvDevice
     val ecosystem = rememberEcosystemStyle(state.selectedDevice?.type)
     val accent by animateColorAsState(
@@ -235,7 +240,7 @@ private fun RGRemoteScreen(
         when {
             probing -> {
                 manualSawProbe = true
-                manualInlineMessage = state.manualProbeMessage ?: MANUAL_PROBE_PROGRESS_FALLBACK
+                manualInlineMessage = state.manualProbeMessage ?: manualProbeProgressFallback
                 manualInlineIsError = false
             }
             state.userFeedback != null && state.userFeedback != attempt.priorFeedback -> {
@@ -251,7 +256,7 @@ private fun RGRemoteScreen(
             }
             manualSawProbe && !probing -> {
                 if (state.connectionStatus == ConnectionStatus.CONNECTION_FAILED) {
-                    manualInlineMessage = state.diagnosticMessage ?: MANUAL_ADD_FAILED_FALLBACK
+                    manualInlineMessage = state.diagnosticMessage ?: manualAddFailedFallback
                     manualInlineIsError = true
                 } else {
                     manualInlineMessage = null
@@ -278,7 +283,7 @@ private fun RGRemoteScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xFF030713), NeoBackground, Color(0xFF0A1020))
+                        colors = listOf(NeoBackgroundDeep, NeoBackground, NeoBackgroundLow)
                     )
                 )
                 .circuitBoardBackground(accent)
@@ -380,7 +385,7 @@ private fun RGRemoteScreen(
                                     editingGoogleTvApp = null
                                     showGoogleTvAppDialog = true
                                 },
-                                onRemovePinnedApp = onRemovePinnedApp
+                                onRemovePinnedApp = { pendingRemoval = PendingRemoval.App(it) }
                             )
                             Spacer(Modifier.height(18.dp))
                         }
@@ -418,7 +423,10 @@ private fun RGRemoteScreen(
                                 onSetShowConnectionGuide = onSetShowConnectionGuide,
                                 onSetShowUtilitiesDock = onSetShowUtilitiesDock,
                                 onSetStartupScreen = onSetStartupScreen,
-                                onRemoveSavedDevice = onRemoveSavedDevice,
+                                onRemoveSavedDevice = { id ->
+                                    state.devices.firstOrNull { device -> device.id == id }
+                                        ?.let { device -> pendingRemoval = PendingRemoval.Device(device) }
+                                },
                                 onDedupeSavedDevices = onDedupeSavedDevices
                             )
                             Spacer(Modifier.height(18.dp))
@@ -473,6 +481,15 @@ private fun RGRemoteScreen(
                 manualInlineIsError = false
                 onAddManualDevice(type, address, name)
             }
+        )
+    }
+
+    if (pendingRemoval != null) {
+        ConfirmRemovalDialog(
+            removal = pendingRemoval!!,
+            onDismiss = { pendingRemoval = null },
+            onConfirmDevice = onRemoveSavedDevice,
+            onConfirmApp = onRemovePinnedApp
         )
     }
 
@@ -532,7 +549,7 @@ private fun SetupGuideBanner(
                     Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            text = "Connection guide",
+                            text = stringResource(R.string.guide_banner_title),
                             color = PrimaryText,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Black
@@ -548,7 +565,7 @@ private fun SetupGuideBanner(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     TextButton(onClick = onHide) {
-                        Text("Hide", color = SecondaryText)
+                        Text(stringResource(R.string.guide_banner_hide), color = SecondaryText)
                     }
                     Button(
                         shape = RoundedCornerShape(14.dp),
@@ -556,12 +573,70 @@ private fun SetupGuideBanner(
                         contentPadding = PaddingValues(horizontal = 12.dp),
                         onClick = onOpenGuide
                     ) {
-                        Text("Guide", maxLines = 1)
+                        Text(stringResource(R.string.guide_banner_guide), maxLines = 1)
                     }
                 }
             }
         }
     }
+}
+
+/** Pending destructive removal awaiting user confirmation. */
+private sealed interface PendingRemoval {
+    data class Device(val device: RegisteredDevice) : PendingRemoval
+    data class App(val app: AppLaunchTarget) : PendingRemoval
+}
+
+@Composable
+private fun ConfirmRemovalDialog(
+    removal: PendingRemoval,
+    onDismiss: () -> Unit,
+    onConfirmDevice: (String) -> Unit,
+    onConfirmApp: (AppLaunchTarget) -> Unit,
+) {
+    val title: String
+    val message: String
+    val onConfirm: () -> Unit
+    when (removal) {
+        is PendingRemoval.Device -> {
+            title = stringResource(R.string.removed_device_title)
+            message = stringResource(
+                R.string.removed_device_confirm,
+                removal.device.friendlyName,
+                removal.device.ipAddress
+            )
+            onConfirm = { onConfirmDevice(removal.device.id) }
+        }
+        is PendingRemoval.App -> {
+            title = stringResource(R.string.removed_app_title)
+            message = stringResource(R.string.removed_app_confirm, removal.app.displayName)
+            onConfirm = { onConfirmApp(removal.app) }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                colors = ButtonDefaults.buttonColors(containerColor = DangerRed, contentColor = Color.White),
+                onClick = {
+                    onConfirm()
+                    onDismiss()
+                }
+            ) {
+                Text(stringResource(R.string.common_remove))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        },
+        title = { Text(title) },
+        text = { Text(message) },
+        containerColor = NeoSurface,
+        titleContentColor = PrimaryText,
+        textContentColor = SecondaryText
+    )
 }
 
 @Composable
@@ -583,16 +658,16 @@ private fun SetupGuideDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             Button(onClick = onDismiss) {
-                Text("Done")
+                Text(stringResource(R.string.common_done))
             }
         },
         dismissButton = {
             TextButton(onClick = onOpenManualDevice) {
-                Text("Add by IP")
+                Text(stringResource(R.string.common_add_by_ip))
             }
         },
         title = {
-            Text("Connect Your TV")
+            Text(stringResource(R.string.setup_guide_title))
         },
         text = {
             Column(
@@ -600,54 +675,54 @@ private fun SetupGuideDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "Set up Roku first, then pair the Google TV box and map its HDMI input.",
+                    text = stringResource(R.string.setup_guide_intro),
                     style = MaterialTheme.typography.bodyMedium,
                     color = SecondaryText
                 )
                 SavedTvsSummary(state = state)
                 GuideStep(
                     number = "1",
-                    title = "Prepare the network",
-                    body = "Put the phone, Roku TV, and Google TV box on the same Wi-Fi or subnet. Avoid guest Wi-Fi, VPN isolation, and router settings that block local device discovery.",
+                    title = stringResource(R.string.guide_step_1_title),
+                    body = stringResource(R.string.guide_step_1_body),
                     complete = false,
                     accent = RokuPrimary
                 )
                 GuideStep(
                     number = "2",
-                    title = "Enable Roku mobile control",
-                    body = "On the Roku TV, open Settings > System > Advanced system settings > Control by mobile apps > Network access, then choose Enabled or Permissive.",
+                    title = stringResource(R.string.guide_step_2_title),
+                    body = stringResource(R.string.guide_step_2_body),
                     complete = false,
                     accent = RokuPrimary
                 )
                 GuideStep(
                     number = "3",
-                    title = "Find the Roku TV",
+                    title = stringResource(R.string.guide_step_3_title),
                     body = if (rokuReady) {
-                        "Roku is connected: ${roku.friendlyName}."
+                        stringResource(R.string.guide_step_3_body_connected, roku.friendlyName)
                     } else {
-                        "Tap Scan Devices. If multicast discovery is blocked, use Add by IP with the Roku address and port 8060."
+                        stringResource(R.string.guide_step_3_body_scan)
                     },
                     complete = rokuReady,
                     accent = RokuPrimary
                 )
                 GuideStep(
                     number = "4",
-                    title = "Pair Google TV",
+                    title = stringResource(R.string.guide_step_4_title),
                     body = when {
-                        googlePaired -> "Google TV is paired and ready for app/navigation commands."
-                        googleDiscovered -> "Start pairing, then enter the 6-character PIN shown on the Google TV screen."
-                        else -> "Keep Google TV on the same network. If discovery does not appear, add its IP address on port 6466."
+                        googlePaired -> stringResource(R.string.guide_step_4_body_paired)
+                        googleDiscovered -> stringResource(R.string.guide_step_4_body_discovered)
+                        else -> stringResource(R.string.guide_step_4_body_missing)
                     },
                     complete = googlePaired,
                     accent = GooglePrimary
                 )
                 GuideStep(
                     number = "5",
-                    title = "Map the HDMI input",
+                    title = stringResource(R.string.guide_step_5_title),
                     body = if (hdmiMapped) {
-                        "Mapped input: ${mappedPort.displayName}."
+                        stringResource(R.string.guide_step_5_body_mapped, mappedPort.displayName)
                     } else {
-                        "Pick the Roku HDMI port where the Google TV box is plugged in before using Watch Google TV."
+                        stringResource(R.string.guide_step_5_body_pick)
                     },
                     complete = hdmiMapped,
                     accent = GooglePrimary
@@ -655,7 +730,7 @@ private fun SetupGuideDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
-                        label = if (state.isScanning) "Scanning..." else "Scan",
+                        label = if (state.isScanning) stringResource(R.string.common_scanning) else stringResource(R.string.common_scan),
                         icon = Icons.Default.Refresh,
                         accent = RokuPrimary,
                         enabled = !state.isScanning,
@@ -663,7 +738,7 @@ private fun SetupGuideDialog(
                     )
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
-                        label = if (googleDiscovered) "Pair / HDMI" else "Add by IP",
+                        label = if (googleDiscovered) stringResource(R.string.guide_pair_hdmi) else stringResource(R.string.common_add_by_ip),
                         icon = if (googleDiscovered) Icons.Default.SmartDisplay else Icons.Default.Add,
                         accent = GooglePrimary,
                         enabled = true,
@@ -752,14 +827,19 @@ private fun SavedTvsSummary(state: RGRemoteUiState) {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Saved on this phone",
+                text = stringResource(R.string.saved_summary_title),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
                 color = PrimaryText
             )
             state.devices.forEach { device ->
                 Text(
-                    text = "${device.type.name.replace('_', ' ')} · ${device.friendlyName} · ${device.ipAddress}",
+                    text = stringResource(
+                        R.string.saved_summary_line,
+                        device.type.name.replace('_', ' '),
+                        device.friendlyName,
+                        device.ipAddress
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = SecondaryText,
                     maxLines = 1,
@@ -768,7 +848,7 @@ private fun SavedTvsSummary(state: RGRemoteUiState) {
             }
             if (state.devices.duplicateDeviceCount() > 0) {
                 Text(
-                    text = "If you see duplicates after reinstall, open Settings and tap Merge duplicate TVs.",
+                    text = stringResource(R.string.saved_summary_duplicates_hint),
                     style = MaterialTheme.typography.labelSmall,
                     color = SecondaryText.copy(alpha = 0.85f)
                 )
@@ -810,16 +890,16 @@ private fun AppsPanel(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = if (ecosystem.type == DeviceType.ROKU_TV) "Roku shortcuts" else "Google TV shortcuts",
+                        text = if (ecosystem.type == DeviceType.ROKU_TV) stringResource(R.string.apps_roku_title) else stringResource(R.string.apps_google_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = PrimaryText,
                         fontWeight = FontWeight.Black
                     )
                     Text(
                         text = if (ecosystem.type == DeviceType.ROKU_TV) {
-                            "Refresh from your Roku, then pin favorites."
+                            stringResource(R.string.apps_roku_subtitle)
                         } else {
-                            "Add friendly names for package names or deep links."
+                            stringResource(R.string.apps_google_subtitle)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = SecondaryText
@@ -835,7 +915,7 @@ private fun AppsPanel(
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(if (state.isLoadingApps) "Refreshing" else "Refresh")
+                        Text(if (state.isLoadingApps) stringResource(R.string.apps_refreshing) else stringResource(R.string.apps_refresh))
                     }
                 } else {
                     Button(
@@ -846,7 +926,7 @@ private fun AppsPanel(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Add")
+                        Text(stringResource(R.string.common_add))
                     }
                 }
             }
@@ -854,9 +934,9 @@ private fun AppsPanel(
             if (activePins.isEmpty()) {
                 EmptyAppsHint(
                     text = if (ecosystem.type == DeviceType.ROKU_TV) {
-                        "No pinned Roku channels yet."
+                        stringResource(R.string.apps_no_roku_pins)
                     } else {
-                        "No pinned Google TV apps yet."
+                        stringResource(R.string.apps_no_google_pins)
                     },
                     accent = accent
                 )
@@ -883,7 +963,7 @@ private fun AppsPanel(
             }
         if (ecosystem.type == DeviceType.GOOGLE_TV && activePins.isEmpty()) {
             Text(
-                text = "With utilities hidden on Remote, launch apps from pins here or expand Utilities on Remote.",
+                text = stringResource(R.string.apps_google_empty_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = SecondaryText
             )
@@ -979,11 +1059,11 @@ private fun AppLaunchCard(
                 Row {
                     if (canEdit) {
                         IconButton(modifier = Modifier.size(48.dp), onClick = { onEdit(app) }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit app", tint = SecondaryText, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.apps_cd_edit_app), tint = SecondaryText, modifier = Modifier.size(18.dp))
                         }
                     }
                     IconButton(modifier = Modifier.size(48.dp), onClick = { onRemove(app) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Remove app", tint = DangerRed, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.apps_cd_remove_app), tint = DangerRed, modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -1014,17 +1094,17 @@ private fun RokuChannelPicker(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Available channels",
+                text = stringResource(R.string.channels_available),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = PrimaryText
             )
             TextButton(enabled = !isLoading, onClick = onRefresh) {
-                Text(if (isLoading) "Refreshing..." else "Refresh Channels")
+                Text(if (isLoading) stringResource(R.string.channels_refreshing) else stringResource(R.string.channels_refresh))
             }
         }
         if (apps.isEmpty()) {
-            EmptyAppsHint(text = "Tap Refresh Channels to read installed Roku apps.", accent = accent)
+            EmptyAppsHint(text = stringResource(R.string.channels_empty_hint), accent = accent)
         } else {
             apps.forEach { app ->
                 val pinned = pins.any { it.deviceType == DeviceType.ROKU_TV && it.launchValue == app.id }
@@ -1044,7 +1124,7 @@ private fun RokuChannelRow(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = Color(0xFF151922),
+        color = NeoInnerCard,
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
     ) {
         Row(
@@ -1061,7 +1141,7 @@ private fun RokuChannelRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "Roku ID ${app.id}",
+                    text = stringResource(R.string.channels_roku_id, app.id),
                     color = SecondaryText,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
@@ -1080,7 +1160,7 @@ private fun RokuChannelRow(
                 contentPadding = PaddingValues(horizontal = 12.dp),
                 onClick = { onPin(app) }
             ) {
-                Text(if (pinned) "Pinned" else "Pin")
+                Text(if (pinned) stringResource(R.string.channels_pinned) else stringResource(R.string.channels_pin))
             }
         }
     }
@@ -1106,15 +1186,15 @@ private fun SettingsPanel(
     onDedupeSavedDevices: () -> Unit,
 ) {
     NeoPanel(accent = accent) {
-            Text("Settings", color = PrimaryText, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_title), color = PrimaryText, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
             SettingsSection(
-                title = "Devices",
-                body = "Use the setup guide first, then scan or add a known IP address.",
+                title = stringResource(R.string.settings_devices_title),
+                body = stringResource(R.string.settings_devices_body),
                 accent = accent
             ) {
                 SettingsActionButton(
                     modifier = Modifier.fillMaxWidth(),
-                    label = "Connection Guide",
+                    label = stringResource(R.string.settings_connection_guide),
                     icon = Icons.AutoMirrored.Filled.HelpOutline,
                     accent = accent,
                     enabled = true,
@@ -1123,7 +1203,7 @@ private fun SettingsPanel(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
-                        label = if (state.isScanning) "Scanning..." else "Scan Devices",
+                        label = if (state.isScanning) stringResource(R.string.common_scanning) else stringResource(R.string.settings_scan_devices),
                         icon = Icons.Default.Refresh,
                         accent = accent,
                         enabled = !state.isScanning,
@@ -1131,7 +1211,7 @@ private fun SettingsPanel(
                     )
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
-                        label = "Refresh Status",
+                        label = stringResource(R.string.settings_refresh_status),
                         icon = Icons.Default.Check,
                         accent = accent,
                         enabled = state.selectedDevice?.type == DeviceType.ROKU_TV ||
@@ -1141,7 +1221,7 @@ private fun SettingsPanel(
                 }
                 SettingsActionButton(
                     modifier = Modifier.fillMaxWidth(),
-                    label = "Add by IP",
+                    label = stringResource(R.string.common_add_by_ip),
                     icon = Icons.Default.Add,
                     accent = accent,
                     enabled = true,
@@ -1149,7 +1229,7 @@ private fun SettingsPanel(
                 )
                 SettingsActionButton(
                     modifier = Modifier.fillMaxWidth(),
-                    label = "Merge duplicate TVs",
+                    label = stringResource(R.string.settings_merge_duplicates),
                     icon = Icons.Default.Refresh,
                     accent = accent,
                     enabled = true,
@@ -1157,49 +1237,45 @@ private fun SettingsPanel(
                 )
             }
             SettingsSection(
-                title = "Startup",
-                body = "Choose which screen RGRemote opens on when you launch the app.",
+                title = stringResource(R.string.settings_startup_title),
+                body = stringResource(R.string.settings_startup_body),
                 accent = accent
             ) {
-                var startupChoice by rememberSaveable { mutableStateOf(STARTUP_CHOICE_UNSET) }
+                val startupChoice = state.startupScreen?.name ?: STARTUP_CHOICE_LAST_SCREEN
                 StartupChoiceRow(
-                    label = "Remember last screen",
+                    label = stringResource(R.string.settings_startup_last),
                     selected = startupChoice == STARTUP_CHOICE_LAST_SCREEN,
                     accent = accent,
                     onSelect = {
-                        startupChoice = STARTUP_CHOICE_LAST_SCREEN
                         onSetStartupScreen(null)
                     }
                 )
                 listOf(
-                    RemoteTab.REMOTE to "Always open Remote",
-                    RemoteTab.APPS to "Always open Apps",
-                    RemoteTab.SETTINGS to "Always open Settings"
+                    RemoteTab.REMOTE to stringResource(R.string.settings_startup_remote),
+                    RemoteTab.APPS to stringResource(R.string.settings_startup_apps),
+                    RemoteTab.SETTINGS to stringResource(R.string.settings_startup_settings)
                 ).forEach { (tab, label) ->
                     StartupChoiceRow(
                         label = label,
                         selected = startupChoice == tab.name,
                         accent = accent,
-                        onSelect = {
-                            startupChoice = tab.name
-                            onSetStartupScreen(tab)
-                        }
+                        onSelect = { onSetStartupScreen(tab) }
                     )
                 }
             }
             SettingsSection(
-                title = "Remote screen",
-                body = "Hide sections on the Remote tab to keep the controller in focus.",
+                title = stringResource(R.string.settings_remote_title),
+                body = stringResource(R.string.settings_remote_body),
                 accent = accent
             ) {
                 PreferenceSwitchRow(
-                    label = "Connection guide banner",
+                    label = stringResource(R.string.settings_pref_guide_banner),
                     checked = state.showConnectionGuide,
                     accent = accent,
                     onCheckedChange = onSetShowConnectionGuide
                 )
                 PreferenceSwitchRow(
-                    label = "Utilities (HDMI & launch)",
+                    label = stringResource(R.string.settings_pref_utilities),
                     checked = state.showUtilitiesDock,
                     accent = accent,
                     onCheckedChange = onSetShowUtilitiesDock
@@ -1207,8 +1283,8 @@ private fun SettingsPanel(
             }
             if (state.devices.isNotEmpty()) {
                 SettingsSection(
-                    title = "Saved TVs",
-                    body = "One entry per TV type is shown on Remote. Remove extras here if needed.",
+                    title = stringResource(R.string.settings_saved_title),
+                    body = stringResource(R.string.settings_saved_body),
                     accent = accent
                 ) {
                     state.devices.forEach { device ->
@@ -1221,14 +1297,14 @@ private fun SettingsPanel(
                 }
             }
             SettingsSection(
-                title = "Active Device",
-                body = state.selectedDevice?.let { "${it.friendlyName} / ${it.ipAddress}:${it.port}" } ?: "No device selected.",
+                title = stringResource(R.string.settings_active_title),
+                body = state.selectedDevice?.let { "${it.friendlyName} / ${it.ipAddress}:${it.port}" } ?: stringResource(R.string.settings_active_none),
                 accent = accent
             ) {
                 if (ecosystem.type == DeviceType.GOOGLE_TV) {
                     SettingsActionButton(
                         modifier = Modifier.fillMaxWidth(),
-                        label = if (state.isGoogleTvPaired) "Google TV Pairing & HDMI" else "Pair Google TV",
+                        label = if (state.isGoogleTvPaired) stringResource(R.string.settings_google_pairing_hdmi) else stringResource(R.string.settings_pair_google),
                         icon = Icons.Default.SmartDisplay,
                         accent = GooglePrimary,
                         enabled = state.googleTvDevice != null,
@@ -1237,18 +1313,18 @@ private fun SettingsPanel(
                 }
             }
             SettingsSection(
-                title = "Privacy",
-                body = "All control traffic stays on your local network. RGRemote does not require an account or send your data to our servers. Google TV pairing keys are stored in Android Keystore on this phone. Nearby Wi-Fi access is declared neverForLocation—it is used to discover TVs on your LAN, not to track your location.",
+                title = stringResource(R.string.settings_privacy_title),
+                body = stringResource(R.string.settings_privacy_body),
                 accent = accent
             ) {
                 Text(
-                    text = "Saved TVs, HDMI mappings, and pinned shortcuts stay on this device only.",
+                    text = stringResource(R.string.settings_privacy_note),
                     color = SecondaryText,
                     style = MaterialTheme.typography.labelMedium
                 )
             }
             SettingsSection(
-                title = "Diagnostics",
+                title = stringResource(R.string.settings_diagnostics_title),
                 body = buildString {
                     append("Status: ${state.connectionStatus.label}")
                     state.selectedDevice?.let { device ->
@@ -1269,20 +1345,20 @@ private fun SettingsPanel(
                 accent = accent
             ) {
                 Text(
-                    text = "Technical details stay here instead of the remote screen.",
+                    text = stringResource(R.string.settings_diagnostics_note),
                     color = SecondaryText,
                     style = MaterialTheme.typography.labelMedium
                 )
             }
             SettingsSection(
-                title = "App Buttons",
-                body = "Pinned buttons are local to this phone. Roku pins come from discovered channel IDs; Google TV pins use package names or deep links.",
+                title = stringResource(R.string.settings_app_buttons_title),
+                body = stringResource(R.string.settings_app_buttons_body),
                 accent = accent
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
-                        label = "Open Apps",
+                        label = stringResource(R.string.settings_open_apps),
                         icon = Icons.Default.Apps,
                         accent = accent,
                         enabled = true,
@@ -1290,7 +1366,7 @@ private fun SettingsPanel(
                     )
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
-                        label = if (ecosystem.type == DeviceType.ROKU_TV) "Refresh Channels" else "Reset Buttons",
+                        label = if (ecosystem.type == DeviceType.ROKU_TV) stringResource(R.string.channels_refresh) else stringResource(R.string.settings_reset_buttons),
                         icon = if (ecosystem.type == DeviceType.ROKU_TV) Icons.Default.Refresh else Icons.Default.Delete,
                         accent = if (ecosystem.type == DeviceType.ROKU_TV) accent else DangerRed,
                         enabled = true,
@@ -1326,7 +1402,6 @@ private fun PreferenceSwitchRow(
     }
 }
 
-private const val STARTUP_CHOICE_UNSET = "unset"
 private const val STARTUP_CHOICE_LAST_SCREEN = "last"
 
 @Composable
@@ -1364,9 +1439,6 @@ private data class ManualAddAttempt(
     val priorOnline: Boolean,
 )
 
-private const val MANUAL_PROBE_PROGRESS_FALLBACK = "Checking that address for a Roku…"
-private const val MANUAL_ADD_FAILED_FALLBACK = "Couldn't reach that address. Check it and try again."
-
 @Composable
 private fun SavedDeviceRow(
     device: RegisteredDevice,
@@ -1400,7 +1472,7 @@ private fun SavedDeviceRow(
                 )
             }
             TextButton(onClick = onRemove) {
-                Text("Remove", color = DangerRed)
+                Text(stringResource(R.string.common_remove), color = DangerRed)
             }
         }
     }
@@ -1482,21 +1554,21 @@ private fun ManualDeviceDialog(
                 enabled = address.trim().isNotBlank() && !isBusy,
                 onClick = { onAdd(type, address, name) }
             ) {
-                Text(if (isBusy) "Checking..." else "Add")
+                Text(if (isBusy) stringResource(R.string.manual_checking) else stringResource(R.string.common_add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.common_cancel))
             }
         },
         title = {
-            Text("Add Device by IP")
+            Text(stringResource(R.string.manual_add_title))
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    listOf(DeviceType.ROKU_TV to "Roku", DeviceType.GOOGLE_TV to "Google TV").forEach { (candidate, label) ->
+                    listOf(DeviceType.ROKU_TV to stringResource(R.string.ecosystem_roku), DeviceType.GOOGLE_TV to stringResource(R.string.ecosystem_google_tv)).forEach { (candidate, label) ->
                         Button(
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
@@ -1511,9 +1583,9 @@ private fun ManualDeviceDialog(
                 }
                 Text(
                     text = if (type == DeviceType.ROKU_TV) {
-                        "Roku will be checked with ECP on port 8060."
+                        stringResource(R.string.manual_hint_roku)
                     } else {
-                        "Google TV will be saved on port 6466 and verified during pairing."
+                        stringResource(R.string.manual_hint_google)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = SecondaryText
@@ -1523,16 +1595,16 @@ private fun ManualDeviceDialog(
                     value = address,
                     onValueChange = { address = it },
                     singleLine = true,
-                    label = { Text("IP address or host") },
-                    placeholder = { Text(if (type == DeviceType.ROKU_TV) "192.168.1.50:8060" else "192.168.1.60:6466") }
+                    label = { Text(stringResource(R.string.manual_label_address)) },
+                    placeholder = { Text(if (type == DeviceType.ROKU_TV) stringResource(R.string.manual_placeholder_roku) else stringResource(R.string.manual_placeholder_google)) }
                 )
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    label = { Text("Optional name") },
-                    placeholder = { Text(if (type == DeviceType.ROKU_TV) "Living Room Roku" else "Onn Google TV") }
+                    label = { Text(stringResource(R.string.manual_label_name)) },
+                    placeholder = { Text(if (type == DeviceType.ROKU_TV) stringResource(R.string.manual_placeholder_name_roku) else stringResource(R.string.device_onn_google_tv)) }
                 )
                 if (inlineMessage != null) {
                     Text(
@@ -1564,21 +1636,21 @@ private fun GoogleTvAppDialog(
                 enabled = name.trim().isNotBlank() && target.trim().isNotBlank(),
                 onClick = { onSave(name, target) }
             ) {
-                Text("Save")
+                Text(stringResource(R.string.common_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.common_cancel))
             }
         },
         title = {
-            Text(if (existing == null) "Add Google TV App" else "Edit Google TV App")
+            Text(if (existing == null) stringResource(R.string.gtapp_add_title) else stringResource(R.string.gtapp_edit_title))
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Use a friendly name and the Android TV package name or a deep link. Examples: com.netflix.ninja, com.google.android.youtube.tv, plex://",
+                    text = stringResource(R.string.gtapp_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = SecondaryText
                 )
@@ -1587,16 +1659,16 @@ private fun GoogleTvAppDialog(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    label = { Text("Button name") },
-                    placeholder = { Text("YouTube") }
+                    label = { Text(stringResource(R.string.gtapp_label_name)) },
+                    placeholder = { Text(stringResource(R.string.gtapp_placeholder_name)) }
                 )
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = target,
                     onValueChange = { target = it },
                     singleLine = true,
-                    label = { Text("Package name or deep link") },
-                    placeholder = { Text("com.google.android.youtube.tv") }
+                    label = { Text(stringResource(R.string.launch_placeholder_package)) },
+                    placeholder = { Text(stringResource(R.string.gtapp_placeholder_target)) }
                 )
             }
         },
@@ -1622,21 +1694,21 @@ private fun GoogleTvSetupDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done")
+                Text(stringResource(R.string.common_done))
             }
         },
         title = {
-            Text("Onn Google TV Setup")
+            Text(stringResource(R.string.gtsetup_title))
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text(
                     text = if (isPaired) {
-                        "Google TV is paired. Start again only if you need to re-pair."
+                        stringResource(R.string.gtsetup_paired_msg)
                     } else if (sessionStarted) {
-                        "Pairing started. Enter the 6-character code shown on your TV (letters and numbers)."
+                        stringResource(R.string.gtsetup_session_msg)
                     } else {
-                        "Start pairing, then enter the 6-character code shown on your TV (letters and numbers)."
+                        stringResource(R.string.gtsetup_start_msg)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = SecondaryText
@@ -1650,30 +1722,30 @@ private fun GoogleTvSetupDialog(
                         value = state.pairingPin,
                         onValueChange = onPairingPinChange,
                         singleLine = true,
-                        label = { Text("Code") }
+                        label = { Text(stringResource(R.string.gtsetup_label_code)) }
                     )
                     Button(
                         modifier = Modifier.height(56.dp),
                         enabled = !state.isPairing,
                         onClick = onStartPairing
                     ) {
-                        Text(if (isPaired) "Re-pair" else "Start")
+                        Text(if (isPaired) stringResource(R.string.gtsetup_re_pair) else stringResource(R.string.gtsetup_start))
                     }
                     Button(
                         modifier = Modifier.height(56.dp),
                         enabled = sessionStarted && state.pairingPin.length == 6 && !state.isPairing,
                         onClick = onFinishPairing
                     ) {
-                        Text("Pair")
+                        Text(stringResource(R.string.gtsetup_pair))
                     }
                 }
                 Text(
-                    text = "The pairing window lasts about a minute. If it expires, start pairing again for a new code.",
+                    text = stringResource(R.string.gtsetup_expiry_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = SecondaryText
                 )
                 Text(
-                    text = "Pick the Roku TV HDMI input where the Onn box is plugged in.",
+                    text = stringResource(R.string.gtsetup_hdmi_note),
                     style = MaterialTheme.typography.bodyMedium,
                     color = SecondaryText
                 )
@@ -1687,7 +1759,7 @@ private fun GoogleTvSetupDialog(
                         ),
                         onClick = { onSetMapping(port) }
                     ) {
-                        Text(if (selected) "${port.displayName} selected" else port.displayName)
+                        Text(if (selected) stringResource(R.string.gtsetup_port_selected, port.displayName) else port.displayName)
                     }
                 }
             }

@@ -15,6 +15,10 @@ class RemoteUiPreferences(context: Context) {
     private val _showUtilitiesDock = MutableStateFlow(prefs.getBoolean(KEY_SHOW_UTILITIES, true))
     val showUtilitiesDock: StateFlow<Boolean> = _showUtilitiesDock
 
+    private val startupTabInitial: RemoteTab? = prefs.getString(KEY_STARTUP_TAB, null)?.let { name ->
+        RemoteTab.entries.firstOrNull { it.name == name }
+    }
+
     val selectedDeviceId: String?
         get() = prefs.getString(KEY_SELECTED_DEVICE_ID, null)
 
@@ -29,6 +33,14 @@ class RemoteUiPreferences(context: Context) {
 
     fun setSelectedTab(tab: RemoteTab?) {
         prefs.edit { putString(KEY_SELECTED_TAB, tab?.name) }
+    }
+
+    private val _startupTab = MutableStateFlow(startupTabInitial)
+    val startupTab: StateFlow<RemoteTab?> = _startupTab
+
+    fun setStartupTab(tab: RemoteTab?) {
+        prefs.edit { putString(KEY_STARTUP_TAB, tab?.name) }
+        _startupTab.value = tab
     }
 
     fun setShowConnectionGuide(show: Boolean) {
@@ -47,5 +59,6 @@ class RemoteUiPreferences(context: Context) {
         private const val KEY_SHOW_UTILITIES = "show_utilities_dock"
         private const val KEY_SELECTED_DEVICE_ID = "selected_device_id"
         private const val KEY_SELECTED_TAB = "selected_tab"
+        private const val KEY_STARTUP_TAB = "startup_tab"
     }
 }

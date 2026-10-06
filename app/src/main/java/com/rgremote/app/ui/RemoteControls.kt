@@ -67,10 +67,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.rgremote.app.R
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.RemoteCommand
@@ -130,7 +132,7 @@ internal fun RemoteSurface(
                             listOf(
                                 NeoVioletDeep.copy(alpha = 0.92f),
                                 NeoSurface.copy(alpha = 0.98f),
-                                Color(0xFF060A14)
+                                com.rgremote.app.ui.theme.RgSurfaceDeep
                             )
                         )
                     )
@@ -147,7 +149,7 @@ internal fun RemoteSurface(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = selected?.friendlyName ?: "No device selected",
+                            text = selected?.friendlyName ?: stringResource(R.string.remote_no_device_selected),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = PrimaryText,
@@ -186,7 +188,7 @@ internal fun RemoteSurface(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Device Actions",
+                                contentDescription = stringResource(R.string.remote_cd_device_actions),
                                 tint = PrimaryText.copy(alpha = 0.8f)
                             )
                         }
@@ -219,10 +221,10 @@ internal fun RemoteSurface(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    RoundIconButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", accentSoft, enabled) {
+                    RoundIconButton(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.remote_back), accentSoft, enabled) {
                         hapticTrigger { onCommand(RemoteCommand.Back) }
                     }
-                    RoundIconButton(Icons.Default.Home, "Home", accentSoft, enabled) {
+                    RoundIconButton(Icons.Default.Home, stringResource(R.string.remote_home), accentSoft, enabled) {
                         hapticTrigger { onCommand(RemoteCommand.Home) }
                     }
                     val powerCommand = when {
@@ -241,7 +243,7 @@ internal fun RemoteSurface(
                         if (ecosystem.type == DeviceType.ROKU_TV && isStandby) powerEnabled else powerOffEnabled
                     RoundIconButton(
                         icon = Icons.Default.PowerSettingsNew,
-                        label = if (!powerModeUnknown && isStandby) "Wake" else "Power",
+                        label = if (!powerModeUnknown && isStandby) stringResource(R.string.remote_wake) else stringResource(R.string.remote_power),
                         accent = powerAccent,
                         enabled = powerControlEnabled
                     ) {
@@ -298,10 +300,10 @@ internal fun RemoteSurface(
                             )
                             RoundIconButton(
                                 icon = Icons.AutoMirrored.Filled.VolumeOff,
-                                label = "Mute",
+                                label = stringResource(R.string.remote_mute),
                                 accent = accentSoft,
                                 enabled = volumeEnabled,
-                                size = 40.dp
+                                size = 48.dp
                             ) {
                                 hapticTrigger { onVolume(VolumeCommand.MUTE) }
                             }
@@ -312,7 +314,7 @@ internal fun RemoteSurface(
                 TransportButton(
                     modifier = Modifier.fillMaxWidth(),
                     icon = Icons.Default.PlayArrow,
-                    label = "PLAY",
+                    label = stringResource(R.string.remote_play_pause),
                     accent = accentSoft,
                     enabled = enabled,
                     emphasized = false
@@ -339,7 +341,7 @@ internal fun RemoteSurface(
                         if (showWatchGoogleTv) {
                             CompactWatchChip(
                                 modifier = Modifier.weight(1f),
-                                label = "Google TV",
+                                label = stringResource(R.string.ecosystem_google_tv),
                                 accent = GooglePrimary,
                                 onClick = onWatchGoogleTv
                             )
@@ -347,7 +349,7 @@ internal fun RemoteSurface(
                         if (showWatchRoku) {
                             CompactWatchChip(
                                 modifier = Modifier.weight(1f),
-                                label = "Roku",
+                                label = stringResource(R.string.ecosystem_roku),
                                 accent = RokuPrimary,
                                 onClick = onWatchRoku
                             )
@@ -413,22 +415,22 @@ internal fun VolumeRail(
         ) {
             RoundIconButton(
                 icon = Icons.AutoMirrored.Filled.VolumeUp,
-                label = "Volume up",
+                label = stringResource(R.string.remote_volume_up),
                 accent = accent,
                 enabled = enabled,
                 size = buttonSize,
                 holdRepeat = true,
                 onClick = onVolumeUp
             )
-            Icon(
-                Icons.AutoMirrored.Filled.VolumeUp,
-                contentDescription = "Volume",
-                tint = accent.copy(alpha = if (enabled) 0.55f else 0.25f),
-                modifier = Modifier.size(buttonSize * 0.5f)
+            Text(
+                text = stringResource(R.string.remote_vol),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Black,
+                color = accent.copy(alpha = if (enabled) 0.55f else 0.25f)
             )
             RoundIconButton(
                 icon = Icons.AutoMirrored.Filled.VolumeDown,
-                label = "Volume down",
+                label = stringResource(R.string.remote_volume_down),
                 accent = accent,
                 enabled = enabled,
                 size = buttonSize,
@@ -533,7 +535,7 @@ internal fun DpadCluster(
         DpadButton(
             modifier = Modifier.align(Alignment.TopCenter).padding(top = edgePad),
             icon = Icons.Default.KeyboardArrowUp,
-            label = "Up",
+            label = stringResource(R.string.remote_up),
             accent = accentSoft,
             enabled = enabled,
             compact = true,
@@ -544,7 +546,7 @@ internal fun DpadCluster(
         DpadButton(
             modifier = Modifier.align(Alignment.CenterStart).padding(start = edgePad),
             icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-            label = "Left",
+            label = stringResource(R.string.remote_left),
             accent = accentSoft,
             enabled = enabled,
             compact = true,
@@ -555,7 +557,7 @@ internal fun DpadCluster(
         DpadButton(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = edgePad),
             icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            label = "Right",
+            label = stringResource(R.string.remote_right),
             accent = accentSoft,
             enabled = enabled,
             compact = true,
@@ -566,7 +568,7 @@ internal fun DpadCluster(
         DpadButton(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = edgePad),
             icon = Icons.Default.KeyboardArrowDown,
-            label = "Down",
+            label = stringResource(R.string.remote_down),
             accent = accentSoft,
             enabled = enabled,
             compact = true,
@@ -630,7 +632,7 @@ internal fun DpadButton(
         Icon(
             icon,
             contentDescription = label,
-            tint = if (enabled) Color(0xFFE6DDFF) else SecondaryText.copy(alpha = 0.42f),
+            tint = if (enabled) DpadIconTint else SecondaryText.copy(alpha = 0.42f),
             modifier = Modifier.size(size * 0.58f)
         )
     }
@@ -662,14 +664,14 @@ internal fun OkButton(
         colors = ButtonDefaults.buttonColors(
             containerColor = accent.copy(alpha = 0.32f),
             contentColor = Color.White,
-            disabledContainerColor = Color(0xFF151923),
+            disabledContainerColor = NeoInnerCard,
             disabledContentColor = SecondaryText.copy(alpha = 0.4f)
         ),
         border = BorderStroke(2.dp, accent.copy(alpha = if (enabled) 0.95f else 0.18f)),
         contentPadding = PaddingValues(0.dp),
         onClick = onClick
     ) {
-        Text("OK", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+        Text(stringResource(R.string.remote_ok), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
     }
 }
 
