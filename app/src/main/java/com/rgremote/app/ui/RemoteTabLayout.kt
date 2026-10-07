@@ -145,9 +145,9 @@ internal fun RemoteTabLayout(
                                 stringResource(
                                     R.string.offline_device_status,
                                     it.friendlyName,
-                                    state.connectionStatus.label.lowercase()
+                                    connectionStatusText(state.connectionStatus).lowercase()
                                 )
-                            } ?: state.connectionStatus.label,
+                            } ?: connectionStatusText(state.connectionStatus),
                             style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                             color = PrimaryText

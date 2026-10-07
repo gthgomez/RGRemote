@@ -3,6 +3,7 @@ package com.rgremote.app.data.preferences
 import android.content.Context
 import androidx.core.content.edit
 import com.rgremote.app.ui.RemoteTab
+import com.rgremote.app.ui.theme.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -14,6 +15,18 @@ class RemoteUiPreferences(context: Context) {
 
     private val _showUtilitiesDock = MutableStateFlow(prefs.getBoolean(KEY_SHOW_UTILITIES, true))
     val showUtilitiesDock: StateFlow<Boolean> = _showUtilitiesDock
+
+    private val _themeMode = MutableStateFlow(
+        prefs.getString(KEY_THEME_MODE, null)?.let { name ->
+            ThemeMode.entries.firstOrNull { it.name == name }
+        } ?: ThemeMode.SYSTEM
+    )
+    val themeMode: StateFlow<ThemeMode> = _themeMode
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit { putString(KEY_THEME_MODE, mode.name) }
+        _themeMode.value = mode
+    }
 
     private val startupTabInitial: RemoteTab? = prefs.getString(KEY_STARTUP_TAB, null)?.let { name ->
         RemoteTab.entries.firstOrNull { it.name == name }
@@ -57,6 +70,7 @@ class RemoteUiPreferences(context: Context) {
         private const val PREFS_NAME = "rgremote_ui_prefs"
         private const val KEY_SHOW_GUIDE = "show_connection_guide"
         private const val KEY_SHOW_UTILITIES = "show_utilities_dock"
+        private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_SELECTED_DEVICE_ID = "selected_device_id"
         private const val KEY_SELECTED_TAB = "selected_tab"
         private const val KEY_STARTUP_TAB = "startup_tab"

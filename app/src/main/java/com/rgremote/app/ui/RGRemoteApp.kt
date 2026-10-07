@@ -103,6 +103,7 @@ import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.roku.RokuPowerMode
+import com.rgremote.app.ui.theme.ThemeMode
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.duplicateDeviceCount
 import com.rgremote.app.domain.HdmiPort
@@ -145,6 +146,7 @@ fun RGRemoteApp(viewModel: RGRemoteViewModel) {
         onSetShowConnectionGuide = viewModel::setShowConnectionGuide,
         onSetShowUtilitiesDock = viewModel::setShowUtilitiesDock,
         onSetStartupScreen = viewModel::setStartupScreen,
+        onSetThemeMode = viewModel::setThemeMode,
         onRemoveSavedDevice = viewModel::removeSavedDevice,
         onDedupeSavedDevices = viewModel::dedupeSavedDevices
     )
@@ -182,6 +184,7 @@ private fun RGRemoteScreen(
     onSetShowConnectionGuide: (Boolean) -> Unit,
     onSetShowUtilitiesDock: (Boolean) -> Unit,
     onSetStartupScreen: (RemoteTab?) -> Unit,
+    onSetThemeMode: (ThemeMode) -> Unit,
     onRemoveSavedDevice: (String) -> Unit,
     onDedupeSavedDevices: () -> Unit,
 ) {
@@ -423,6 +426,7 @@ private fun RGRemoteScreen(
                                 onSetShowConnectionGuide = onSetShowConnectionGuide,
                                 onSetShowUtilitiesDock = onSetShowUtilitiesDock,
                                 onSetStartupScreen = onSetStartupScreen,
+                                onSetThemeMode = onSetThemeMode,
                                 onRemoveSavedDevice = { id ->
                                     state.devices.firstOrNull { device -> device.id == id }
                                         ?.let { device -> pendingRemoval = PendingRemoval.Device(device) }
@@ -857,16 +861,36 @@ private fun SavedTvsSummary(state: RGRemoteUiState) {
     }
 }
 
-private fun setupGuideStatusText(state: RGRemoteUiState): String {
-    val roku = state.rokuDevice
+@Composable
+private fun setupGuideStatusText(state: RGRemoteUiState): String {    val roku = state.rokuDevice
     val google = state.googleTvDevice
     return when {
-        roku == null -> "Start with Roku network access and device discovery."
-        google == null -> "Roku is ready. Add or discover the Google TV box when you need it."
-        !state.pairedDeviceIds.contains(google.id) -> "Google TV found. Pair it with the PIN shown on the TV."
-        google.hdmiPortMapping == null -> "Pairing is done. Map the Google TV HDMI input next."
-        else -> "Setup is ready. Test Roku Home and Google TV Home."
+        roku == null -> stringResource(R.string.guide_status_no_roku)
+        google == null -> stringResource(R.string.guide_status_no_google)
+        !state.pairedDeviceIds.contains(google.id) -> stringResource(R.string.guide_status_unpaired)
+        google.hdmiPortMapping == null -> stringResource(R.string.guide_status_unmapped)
+        else -> stringResource(R.string.guide_status_ready)
     }
+}
+
+@Composable
+private fun diagnosticsSummary(state: RGRemoteUiState): String {
+    val lines = mutableListOf(stringResource(R.string.settings_diagnostics_status, connectionStatusText(state.connectionStatus)))
+    state.selectedDevice?.let { device ->
+        lines += stringResource(R.string.settings_diagnostics_device, device.friendlyName)
+        lines += stringResource(R.string.settings_diagnostics_endpoint, "${device.ipAddress}:${device.port}")
+        lines += stringResource(R.string.settings_diagnostics_failures, device.consecutiveFailures)
+        if (device.type == DeviceType.ROKU_TV) {
+            state.selectedRokuPowerMode?.let { raw ->
+                val label = RokuPowerMode.displayLabel(raw) ?: raw
+                lines += stringResource(R.string.settings_diagnostics_power_mode, label)
+            }
+        }
+    }
+    state.diagnosticMessage?.let { detail ->
+        lines += stringResource(R.string.settings_diagnostics_detail, detail)
+    }
+    return lines.joinToString("\n")
 }
 
 @Composable
@@ -1182,6 +1206,7 @@ private fun SettingsPanel(
     onSetShowConnectionGuide: (Boolean) -> Unit,
     onSetShowUtilitiesDock: (Boolean) -> Unit,
     onSetStartupScreen: (RemoteTab?) -> Unit,
+    onSetThemeMode: (ThemeMode) -> Unit,
     onRemoveSavedDevice: (String) -> Unit,
     onDedupeSavedDevices: () -> Unit,
 ) {
@@ -1264,6 +1289,24 @@ private fun SettingsPanel(
                 }
             }
             SettingsSection(
+                title = stringResource(R.string.settings_theme_title),
+                body = stringResource(R.string.settings_theme_body),
+                accent = accent
+            ) {
+                listOf(
+                    ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
+                    ThemeMode.DARK to stringResource(R.string.settings_theme_dark),
+                    ThemeMode.LIGHT to stringResource(R.string.settings_theme_light)
+                ).forEach { (mode, label) ->
+                    StartupChoiceRow(
+                        label = label,
+                        selected = state.themeMode == mode,
+                        accent = accent,
+                        onSelect = { onSetThemeMode(mode) }
+                    )
+                }
+            }
+            SettingsSection(
                 title = stringResource(R.string.settings_remote_title),
                 body = stringResource(R.string.settings_remote_body),
                 accent = accent
@@ -1325,23 +1368,7 @@ private fun SettingsPanel(
             }
             SettingsSection(
                 title = stringResource(R.string.settings_diagnostics_title),
-                body = buildString {
-                    append("Status: ${state.connectionStatus.label}")
-                    state.selectedDevice?.let { device ->
-                        append("\nDevice: ${device.friendlyName}")
-                        append("\nEndpoint: ${device.ipAddress}:${device.port}")
-                        append("\nFailures: ${device.consecutiveFailures}")
-                        if (device.type == DeviceType.ROKU_TV) {
-                            state.selectedRokuPowerMode?.let { raw ->
-                                val label = RokuPowerMode.displayLabel(raw)
-                                append("\nPower mode: ${label ?: raw}")
-                            }
-                        }
-                    }
-                    state.diagnosticMessage?.let { detail ->
-                        append("\nDetail: $detail")
-                    }
-                },
+                body = diagnosticsSummary(state),
                 accent = accent
             ) {
                 Text(

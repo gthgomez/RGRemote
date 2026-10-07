@@ -132,7 +132,7 @@ internal fun RemoteSurface(
                             listOf(
                                 NeoVioletDeep.copy(alpha = 0.92f),
                                 NeoSurface.copy(alpha = 0.98f),
-                                com.rgremote.app.ui.theme.RgSurfaceDeep
+                                NeoSurfaceDeep
                             )
                         )
                     )
@@ -170,7 +170,7 @@ internal fun RemoteSurface(
                                 text = if (selected?.type == DeviceType.ROKU_TV) {
                                     rokuConnectionStatusLabel(state)
                                 } else {
-                                    state.connectionStatus.label
+                                    connectionStatusText(state.connectionStatus)
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = statusColor(state.connectionStatus, accent),

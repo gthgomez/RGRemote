@@ -352,7 +352,7 @@ internal fun PinnedQuickActionsRow(
                 QuickActionSlot.Add -> {
                     QuickActionChip(
                         modifier = Modifier.weight(1f),
-                        label = "+ Add",
+                        label = stringResource(R.string.common_add),
                         isAdd = true,
                         accent = accent,
                         enabled = true,
@@ -383,40 +383,7 @@ private fun QuickActionChip(
         border = BorderStroke(1.dp, if (isAdd) accent.copy(alpha = 0.45f) else GlassStroke)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            PresetLogo(label = label, accent = accent)
-        }
-    }
-}
-
-@Composable
-internal fun PresetLaunchRow(
-    accent: Color,
-    presets: List<Pair<String, String>>,
-    onLaunchPreset: (String) -> Unit,
-    onAddClick: () -> Unit = {},
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        presets.take(4).forEach { (label, target) ->
-            val isAdd = label.startsWith("+")
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable(enabled = isAdd || target.isNotBlank()) {
-                        if (isAdd) onAddClick() else onLaunchPreset(target)
-                    },
-                shape = RoundedCornerShape(12.dp),
-                color = if (isAdd) accent.copy(alpha = 0.24f) else NeoCard.copy(alpha = 0.76f),
-                border = BorderStroke(1.dp, if (isAdd) accent.copy(alpha = 0.45f) else GlassStroke)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    PresetLogo(label = label, accent = accent)
-                }
-            }
+            PresetLogo(label = label, accent = accent, isAdd = isAdd)
         }
     }
 }
@@ -467,8 +434,7 @@ internal fun LaunchPanel(
 }
 
 @Composable
-private fun PresetLogo(label: String, accent: Color) {
-    val isAdd = label.startsWith("+")
+private fun PresetLogo(label: String, accent: Color, isAdd: Boolean) {
     Row(
         modifier = Modifier.padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.Center,
