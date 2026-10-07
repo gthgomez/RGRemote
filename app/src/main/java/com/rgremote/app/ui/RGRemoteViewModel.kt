@@ -31,6 +31,7 @@ import com.rgremote.app.ui.controller.DeviceStatusWriter
 import com.rgremote.app.ui.controller.DiscoveryCoordinator
 import com.rgremote.app.ui.controller.PairingOrchestrator
 import com.rgremote.app.ui.controller.RokuStatusPoller
+import com.rgremote.app.ui.theme.ThemeMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -101,6 +102,7 @@ data class RGRemoteUiState(
     val showConnectionGuide: Boolean = true,
     val showUtilitiesDock: Boolean = true,
     val startupScreen: RemoteTab? = null,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val setupIncomplete: Boolean = true,
 ) {
     val inferredHdmiPort: HdmiPort?
@@ -210,13 +212,14 @@ class RGRemoteViewModel(
                 uiPreferences.showConnectionGuide,
                 uiPreferences.showUtilitiesDock,
                 uiPreferences.startupTab,
+                uiPreferences.themeMode,
                 localState,
-            ) { showGuide, showUtilities, startupTab, state ->
-                UiSnapshot(showGuide, showUtilities, startupTab, state)
+            ) { showGuide, showUtilities, startupTab, themeMode, state ->
+                UiSnapshot(showGuide, showUtilities, startupTab, themeMode, state)
             },
         ) { deviceSnapshot, uiSnapshot ->
             val (devices, pairedIds, pins) = deviceSnapshot
-            val (showGuide, showUtilities, startupTab, state) = uiSnapshot
+            val (showGuide, showUtilities, startupTab, themeMode, state) = uiSnapshot
             val canonical = devices.canonicalDevicesPerType()
             val persistedId = uiPreferences.selectedDeviceId
             val selected = state.selectedDeviceId
@@ -239,6 +242,7 @@ class RGRemoteViewModel(
                 showConnectionGuide = showGuide,
                 showUtilitiesDock = showUtilities,
                 startupScreen = startupTab,
+                themeMode = themeMode,
             )
         }
         .onStart {
@@ -316,6 +320,10 @@ class RGRemoteViewModel(
     fun setShowUtilitiesDock(show: Boolean) {
         uiPreferences.setShowUtilitiesDock(show)
         feedback.show(if (show) "Show utilities on Remote" else "Hide utilities on Remote")
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        uiPreferences.setThemeMode(mode)
     }
 
     fun setStartupScreen(tab: RemoteTab?) {
@@ -764,5 +772,6 @@ private data class UiSnapshot(
     val showGuide: Boolean,
     val showUtilities: Boolean,
     val startupTab: RemoteTab?,
+    val themeMode: ThemeMode,
     val state: RGRemoteUiState,
 )

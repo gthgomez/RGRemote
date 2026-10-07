@@ -16,14 +16,20 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.rgremote.app.di.AppContainer
 import com.rgremote.app.ui.RGRemoteApp
 import com.rgremote.app.ui.RGRemoteViewModel
 import com.rgremote.app.ui.theme.RGRemoteTheme
+import com.rgremote.app.ui.theme.ThemeMode
 
 class MainActivity : ComponentActivity() {
     private lateinit var viewModel: RGRemoteViewModel
@@ -68,7 +74,10 @@ class MainActivity : ComponentActivity() {
         )[RGRemoteViewModel::class.java]
 
         setContent {
-            RGRemoteTheme {
+            val themeMode by remember {
+                viewModel.uiState.map { it.themeMode }.distinctUntilChanged()
+            }.collectAsStateWithLifecycle(ThemeMode.SYSTEM)
+            RGRemoteTheme(themeMode = themeMode) {
                 RGRemoteApp(viewModel = viewModel)
                 PermanentDenialSettingsDialog(
                     visible = showSettingsPrompt.value,

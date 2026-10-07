@@ -106,11 +106,13 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
@@ -125,6 +127,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+import com.rgremote.app.ui.theme.LocalRgColors
 import com.rgremote.app.ui.theme.RgBackground
 import com.rgremote.app.ui.theme.RgBackgroundDeep
 import com.rgremote.app.ui.theme.RgBackgroundLow
@@ -144,24 +147,27 @@ import com.rgremote.app.ui.theme.RgTextPrimary
 import com.rgremote.app.ui.theme.RgTextSecondary
 import com.rgremote.app.ui.theme.RgVioletDeep
 
-internal val NeoBackground = RgBackground
-internal val NeoBackgroundDeep = RgBackgroundDeep
-internal val NeoBackgroundLow = RgBackgroundLow
-internal val NeoSurface = RgSurface
-internal val NeoCard = RgCard
-internal val NeoInnerCard = RgInnerCard
-internal val NeoBottomBar = RgBottomBar
-internal val NeoVioletDeep = RgVioletDeep
-internal val PrimaryText = RgTextPrimary
-internal val SecondaryText = RgTextSecondary
-internal val DpadIconTint = RgDpadIcon
+// Theme-dependent tokens resolve through LocalRgColors (set in RGRemoteTheme);
+// ecosystem accents and success/danger stay constant across themes.
+internal val NeoBackground: Color @Composable get() = LocalRgColors.current.background
+internal val NeoBackgroundDeep: Color @Composable get() = LocalRgColors.current.backgroundDeep
+internal val NeoBackgroundLow: Color @Composable get() = LocalRgColors.current.backgroundLow
+internal val NeoSurface: Color @Composable get() = LocalRgColors.current.surface
+internal val NeoCard: Color @Composable get() = LocalRgColors.current.card
+internal val NeoInnerCard: Color @Composable get() = LocalRgColors.current.innerCard
+internal val NeoBottomBar: Color @Composable get() = LocalRgColors.current.bottomBar
+internal val NeoVioletDeep: Color @Composable get() = LocalRgColors.current.violetDeep
+internal val NeoSurfaceDeep: Color @Composable get() = LocalRgColors.current.surfaceDeep
+internal val PrimaryText: Color @Composable get() = LocalRgColors.current.textPrimary
+internal val SecondaryText: Color @Composable get() = LocalRgColors.current.textSecondary
+internal val DpadIconTint: Color @Composable get() = LocalRgColors.current.dpadIcon
 internal val SuccessGreen = RgSuccess
 internal val DangerRed = RgDanger
 internal val RokuPrimary = RgRokuPrimary
 internal val RokuAccent = RgRokuAccent
 internal val GooglePrimary = RgGooglePrimary
 internal val GoogleAccent = RgGoogleAccent
-internal val GlassStroke = Color.White.copy(alpha = 0.10f)
+internal val GlassStroke: Color @Composable get() = LocalRgColors.current.glassStroke
 internal val PurpleGlow = RgRokuPrimary
 internal val NeoBlueAccent = RgBlueAccent
 
@@ -200,22 +206,22 @@ internal fun rememberEcosystemStyle(deviceType: DeviceType?): EcosystemStyle =
     when (deviceType) {
         DeviceType.ROKU_TV -> EcosystemStyle(
             type = DeviceType.ROKU_TV,
-            label = "Roku",
-            launchLabel = "Launch Channel",
+            label = stringResource(R.string.ecosystem_roku),
+            launchLabel = stringResource(R.string.launch_channel),
             primary = RokuPrimary,
             accent = RokuAccent
         )
         DeviceType.GOOGLE_TV -> EcosystemStyle(
             type = DeviceType.GOOGLE_TV,
-            label = "Google TV",
-            launchLabel = "Launch App",
+            label = stringResource(R.string.ecosystem_google_tv),
+            launchLabel = stringResource(R.string.launch_app),
             primary = GooglePrimary,
             accent = GoogleAccent
         )
         null -> EcosystemStyle(
             type = DeviceType.GOOGLE_TV,
-            label = "Remote",
-            launchLabel = "Launch",
+            label = stringResource(R.string.ecosystem_generic),
+            launchLabel = stringResource(R.string.launch_generic),
             primary = NeutralPrimary,
             accent = NeutralAccent
         )
@@ -350,6 +356,7 @@ internal fun NeoPanel(
     }
 }
 
+@Composable
 internal fun statusColor(status: ConnectionStatus, accent: Color): Color =
     when (status) {
         ConnectionStatus.ONLINE,
@@ -361,14 +368,20 @@ internal fun statusColor(status: ConnectionStatus, accent: Color): Color =
         ConnectionStatus.WAKE_UNAVAILABLE -> DangerRed
     }
 
+@Composable
 internal fun rokuConnectionStatusLabel(state: RGRemoteUiState): String {
-    if (state.selectedDevice?.type != DeviceType.ROKU_TV) return state.connectionStatus.label
-    val power = state.selectedRokuPowerMode?.let { RokuPowerMode.displayLabel(it) }
-    return if (power != null && state.connectionStatus == ConnectionStatus.ONLINE) {
-        "${state.connectionStatus.label} · $power"
-    } else {
-        state.connectionStatus.label
-    }
+    if (state.selectedDevice?.type != DeviceType.ROKU_TV) return connectionStatusText(state.connectionStatus)
+    return rokuConnectionStatusText(
+        statusText = connectionStatusText(state.connectionStatus),
+        powerLabel = state.selectedRokuPowerMode?.let { RokuPowerMode.displayLabel(it) },
+        online = state.connectionStatus == ConnectionStatus.ONLINE,
+    )
+}
+
+/** Pure formatting so the join rule stays unit-testable without a composition. */
+internal fun rokuConnectionStatusText(statusText: String, powerLabel: String?, online: Boolean): String {
+    if (powerLabel == null || !online) return statusText
+    return "$statusText · $powerLabel"
 }
 
 @Composable
@@ -440,7 +453,7 @@ internal fun Modifier.cyberEtch(accent: Color, alpha: Float = 0.24f): Modifier =
         if (alpha <= 0f) return@drawBehind
         val stroke = 1.dp.toPx()
         val thin = accent.copy(alpha = alpha)
-        val ghost = Color.White.copy(alpha = alpha * 0.25f)
+        val ghost = accent.copy(alpha = alpha * 0.25f)
         val w = size.width
         val h = size.height
 

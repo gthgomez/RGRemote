@@ -90,6 +90,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -237,7 +239,7 @@ internal fun ActiveDeviceHeader(
                                 text = if (selected?.type == DeviceType.ROKU_TV) {
                                     rokuConnectionStatusLabel(state)
                                 } else {
-                                    state.connectionStatus.label
+                                    connectionStatusText(state.connectionStatus)
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = statusColor(state.connectionStatus, accent),
@@ -547,6 +549,7 @@ internal fun EcosystemSegment(
     showAttentionDot: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val attentionDescription = stringResource(R.string.segment_cd_needs_setup)
     Surface(
         modifier = modifier
             .height(34.dp)
@@ -573,6 +576,9 @@ internal fun EcosystemSegment(
                         .size(7.dp)
                         .clip(CircleShape)
                         .background(DangerRed.copy(alpha = 0.9f))
+                        .semantics {
+                            contentDescription = attentionDescription
+                        }
                 )
             }
         }

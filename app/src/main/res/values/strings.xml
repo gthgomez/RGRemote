@@ -19,6 +19,20 @@
     <!-- Ecosystem names -->
     <string name="ecosystem_roku">Roku</string>
     <string name="ecosystem_google_tv">Google TV</string>
+    <string name="ecosystem_generic">Remote</string>
+    <string name="launch_channel">Launch Channel</string>
+    <string name="launch_app">Launch App</string>
+    <string name="launch_generic">Launch</string>
+
+    <!-- Connection status labels -->
+    <string name="status_online">Online</string>
+    <string name="status_offline">Offline</string>
+    <string name="status_checking">Checking</string>
+    <string name="status_paired">Paired</string>
+    <string name="status_not_paired">Not paired</string>
+    <string name="status_connection_failed">Connection failed</string>
+    <string name="status_wake_unavailable">Wake unavailable</string>
+    <string name="segment_cd_needs_setup">Needs setup</string>
 
     <!-- Remote screen -->
     <string name="remote_no_device_selected">No device selected</string>
@@ -87,6 +101,11 @@
     <string name="guide_banner_title">Connection guide</string>
     <string name="guide_banner_hide">Hide</string>
     <string name="guide_banner_guide">Guide</string>
+    <string name="guide_status_no_roku">Start with Roku network access and device discovery.</string>
+    <string name="guide_status_no_google">Roku is ready. Add or discover the Google TV box when you need it.</string>
+    <string name="guide_status_unpaired">Google TV found. Pair it with the PIN shown on the TV.</string>
+    <string name="guide_status_unmapped">Pairing is done. Map the Google TV HDMI input next.</string>
+    <string name="guide_status_ready">Setup is ready. Test Roku Home and Google TV Home.</string>
 
     <!-- Removal confirmation dialog -->
     <string name="removed_device_title">Remove saved TV?</string>
@@ -158,6 +177,11 @@
     <string name="settings_remote_body">Hide sections on the Remote tab to keep the controller in focus.</string>
     <string name="settings_pref_guide_banner">Connection guide banner</string>
     <string name="settings_pref_utilities">Utilities (HDMI &amp; launch)</string>
+    <string name="settings_theme_title">Appearance</string>
+    <string name="settings_theme_body">Match the colors to your system or pick a fixed look.</string>
+    <string name="settings_theme_system">Follow system</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_light">Light</string>
     <string name="settings_saved_title">Saved TVs</string>
     <string name="settings_saved_body">One entry per TV type is shown on Remote. Remove extras here if needed.</string>
     <string name="settings_active_title">Active Device</string>
@@ -169,6 +193,12 @@
     <string name="settings_privacy_note">Saved TVs, HDMI mappings, and pinned shortcuts stay on this device only.</string>
     <string name="settings_diagnostics_title">Diagnostics</string>
     <string name="settings_diagnostics_note">Technical details stay here instead of the remote screen.</string>
+    <string name="settings_diagnostics_status">Status: %1$s</string>
+    <string name="settings_diagnostics_device">Device: %1$s</string>
+    <string name="settings_diagnostics_endpoint">Endpoint: %1$s</string>
+    <string name="settings_diagnostics_failures">Failures: %1$d</string>
+    <string name="settings_diagnostics_power_mode">Power mode: %1$s</string>
+    <string name="settings_diagnostics_detail">Detail: %1$s</string>
     <string name="settings_app_buttons_title">App Buttons</string>
     <string name="settings_app_buttons_body">Pinned buttons are local to this phone. Roku pins come from discovered channel IDs; Google TV pins use package names or deep links.</string>
     <string name="settings_open_apps">Open Apps</string>
