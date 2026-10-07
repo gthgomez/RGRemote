@@ -107,12 +107,13 @@ interface DeviceDao {
         }
     }
 
-    /** Removes duplicate rows (same physical TV, different ids after scan/reinstall). */
+    /** Removes duplicate rows (same physical TV, different ids after scan/reinstall); returns how many rows were removed. */
     @Transaction
-    suspend fun deduplicateStoredDevices() {
+    suspend fun deduplicateStoredDevices(): Int {
         val rows = listDevices()
-        if (rows.isEmpty()) return
+        if (rows.isEmpty()) return 0
 
+        var removed = 0
         // Group by physical device identity: real serial number if available, otherwise fallback to IP
         val groups = rows.groupBy { row ->
             if (row.uniqueId.startsWith("manual:")) {
@@ -147,7 +148,9 @@ interface DeviceDao {
                 deletePairingCredential(stale.id)
                 deleteDevice(stale.id)
             }
+            removed += duplicates.size
         }
+        return removed
     }
 
     suspend fun migratePairingCredential(fromDeviceId: String, toDeviceId: String) {

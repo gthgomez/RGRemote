@@ -122,7 +122,6 @@ internal fun ActiveDeviceHeader(
     compact: Boolean = true,
 ) {
     val selected = state.selectedDevice
-    var menuExpanded by remember { mutableStateOf(false) }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(if (compact) 18.dp else 22.dp),
@@ -248,25 +247,6 @@ internal fun ActiveDeviceHeader(
                             )
                         }
                     }
-                }
-                Box {
-                    RoundIconButton(
-                        icon = Icons.Default.MoreVert,
-                        label = stringResource(R.string.header_cd_more_actions),
-                        accent = accent,
-                        enabled = true,
-                        size = if (compact) 38.dp else 42.dp,
-                        onClick = { menuExpanded = true }
-                    )
-                    HeaderOverflowMenu(
-                        expanded = menuExpanded,
-                        state = state,
-                        selected = selected,
-                        onDismiss = { menuExpanded = false },
-                        onScan = onScan,
-                        onRefreshStatus = onRefreshStatus,
-                        onOpenSetupGuide = onOpenSetupGuide
-                    )
                 }
             }
             if (useEcosystemSegmentBar(state)) {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -138,27 +139,52 @@ internal fun RemoteTabLayout(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = state.selectedDevice?.let {
-                                stringResource(
-                                    R.string.offline_device_status,
-                                    it.friendlyName,
-                                    connectionStatusText(state.connectionStatus).lowercase()
-                                )
-                            } ?: connectionStatusText(state.connectionStatus),
-                            style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            color = PrimaryText
-                        )
-                        Text(
-                            text = stringResource(R.string.offline_hint),
-                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                            color = SecondaryText,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = state.selectedDevice?.let {
+                                    stringResource(
+                                        R.string.offline_device_status,
+                                        it.friendlyName,
+                                        connectionStatusText(state.connectionStatus).lowercase()
+                                    )
+                                } ?: connectionStatusText(state.connectionStatus),
+                                style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = PrimaryText
+                            )
+                            Text(
+                                text = stringResource(R.string.offline_hint),
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = SecondaryText,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.Button(
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = accent,
+                                    contentColor = androidx.compose.ui.graphics.Color.White
+                                ),
+                                enabled = !state.isScanning,
+                                onClick = onScan
+                            ) {
+                                Text(stringResource(R.string.common_scan))
+                            }
+                            androidx.compose.material3.Button(
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = NeoCard.copy(alpha = 0.9f),
+                                    contentColor = PrimaryText
+                                ),
+                                onClick = onRefreshStatus
+                            ) {
+                                Text(stringResource(R.string.header_menu_refresh_status))
+                            }
+                        }
                     }
                 }
             }
