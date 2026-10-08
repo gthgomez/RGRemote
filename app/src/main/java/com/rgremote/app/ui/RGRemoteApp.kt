@@ -291,11 +291,15 @@ private fun RGRemoteScreen(
         containerColor = NeoBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            NeoBottomNavigation(
-                selectedTab = state.selectedTab,
-                accent = accent,
-                onSelectTab = onSelectTab
-            )
+            // Halo contract: no bottom navigation on the default remote screen;
+            // Apps and Settings are reachable from the More Controls sheet.
+            if (state.selectedTab != RemoteTab.REMOTE) {
+                NeoBottomNavigation(
+                    selectedTab = state.selectedTab,
+                    accent = accent,
+                    onSelectTab = onSelectTab
+                )
+            }
         }
     ) { padding ->
         BoxWithConstraints(
