@@ -27,3 +27,5 @@ google-services.json
 
 visual-pass-*.png
 commitPlan*.json
+/handoff-*.md
+/NOTICE.bak
