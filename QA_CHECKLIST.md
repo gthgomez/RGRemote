@@ -54,15 +54,20 @@ Run on the same Wi-Fi as the TCL Roku TV after `testDebugUnitTest` passes.
 - **Watch Roku** sends Roku Home and selects the Roku tile.
 - App never claims automatic panel visibility detection.
 
-## Visual QA
+## Visual QA — Halo Remote
 
-- Normal phone layout matches the Roku neon/glass direction in `docs/ui-target.md`.
-- Small phone layout keeps the header, remote controls, quick actions, and bottom nav usable.
-- Font scale around 1.3x does not clip labels or resize fixed controls awkwardly.
-- Roku selected state and Google TV paired state remain visually distinct.
-- Quick actions are usable: HDMI tiles, Roku shortcut tiles, manual channel/deep-link launch, and customize affordance.
-- Disabled, unpaired, loading, and offline states are readable and do not look like successful online states.
-- Bottom navigation remains slim, segmented, and non-overlapping.
+Authoritative target: `docs/ui-target.md` plus `docs/reference/halo-*.png`.
+
+- Dark and light layouts reproduce the minimal header, device chip, halo ring, glass dock, and More Controls affordance from the reference mockup.
+- The idle ring shows no dots, arrows, or labels; direction arrows appear only while pressed.
+- Each of the five ring zones (Up/Down/Left/Right/center) sends the correct command on the selected ecosystem.
+- Hold-and-release on a ring direction leaves no stuck or delayed navigation (no queued commands after lift).
+- Back, Home, and Power in the glass dock use correct ecosystem-specific semantics; Roku power with unknown power mode does not send `PowerToggle`.
+- All secondary controls (volume, mute, transport, app shortcuts, HDMI, keyboard, watch mode) remain reachable via More Controls; Apps and Settings remain reachable.
+- `CHECKING`, `NOT_PAIRED`, `OFFLINE`, and `CONNECTION_FAILED` states never look ready: chip status is accurate and ring/dock are visibly disabled.
+- Deterministic previews (`ui/preview/VisualContractPreviews.kt`) exist for dark/light × Online/Checking/Offline/Not paired; screenshot baselines cover the same matrix once PR05 lands.
+- Primary device check on Samsung S25 Ultra; also verify a small-phone profile and font scale 1.3x without clipping or overlap.
+- Landscape and >=600dp widths keep the ring usable and secondary controls accessible.
 
 ## Pairing And Persistence
 
@@ -76,6 +81,6 @@ Run on the same Wi-Fi as the TCL Roku TV after `testDebugUnitTest` passes.
 
 - Google TV Remote v2 is reverse-engineered and may break after OS updates.
 - Roku active-app HDMI values are hints, not proof of visible panel input.
-- Visual QA is currently manual/screenshot based.
+- Visual QA is screenshot/manual driven until the PR05 Roborazzi baselines land.
 - Release APK signing currently uses temporary Android debug credentials for release testing only.
 - Hardware verification requires devices on the same local network with multicast/NSD allowed.
