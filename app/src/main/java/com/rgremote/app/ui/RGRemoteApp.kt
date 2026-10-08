@@ -105,6 +105,7 @@ import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.roku.RokuPowerMode
+import com.rgremote.app.ui.theme.LocalHaloColors
 import com.rgremote.app.ui.theme.ThemeMode
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.duplicateDeviceCount
@@ -672,9 +673,9 @@ private fun ConfirmRemovalDialog(
         },
         title = { Text(title) },
         text = { Text(message) },
-        containerColor = NeoSurface,
-        titleContentColor = PrimaryText,
-        textContentColor = SecondaryText
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
@@ -693,16 +694,23 @@ private fun SetupGuideDialog(
     val googleDiscovered = google != null
     val googlePaired = google?.id?.let { state.pairedDeviceIds.contains(it) } == true
     val hdmiMapped = mappedPort != null
+    val halo = LocalHaloColors.current
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            Button(onClick = onDismiss) {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = halo.ringBottom,
+                    contentColor = Color.White
+                )
+            ) {
                 Text(stringResource(R.string.common_done))
             }
         },
         dismissButton = {
             TextButton(onClick = onOpenManualDevice) {
-                Text(stringResource(R.string.common_add_by_ip))
+                Text(stringResource(R.string.common_add_by_ip), color = halo.wordmarkAccent)
             }
         },
         title = {
@@ -724,14 +732,14 @@ private fun SetupGuideDialog(
                     title = stringResource(R.string.guide_step_1_title),
                     body = stringResource(R.string.guide_step_1_body),
                     complete = false,
-                    accent = RokuPrimary
+                    accent = halo.ringBottom
                 )
                 GuideStep(
                     number = "2",
                     title = stringResource(R.string.guide_step_2_title),
                     body = stringResource(R.string.guide_step_2_body),
                     complete = false,
-                    accent = RokuPrimary
+                    accent = halo.ringBottom
                 )
                 GuideStep(
                     number = "3",
@@ -742,7 +750,7 @@ private fun SetupGuideDialog(
                         stringResource(R.string.guide_step_3_body_scan)
                     },
                     complete = rokuReady,
-                    accent = RokuPrimary
+                    accent = halo.ringBottom
                 )
                 GuideStep(
                     number = "4",
@@ -753,7 +761,7 @@ private fun SetupGuideDialog(
                         else -> stringResource(R.string.guide_step_4_body_missing)
                     },
                     complete = googlePaired,
-                    accent = GooglePrimary
+                    accent = halo.ringMid
                 )
                 GuideStep(
                     number = "5",
@@ -764,14 +772,14 @@ private fun SetupGuideDialog(
                         stringResource(R.string.guide_step_5_body_pick)
                     },
                     complete = hdmiMapped,
-                    accent = GooglePrimary
+                    accent = halo.ringTop
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
                         label = if (state.isScanning) stringResource(R.string.common_scanning) else stringResource(R.string.common_scan),
                         icon = Icons.Default.Refresh,
-                        accent = RokuPrimary,
+                        accent = halo.ringMid,
                         enabled = !state.isScanning,
                         onClick = onScan
                     )
@@ -779,16 +787,16 @@ private fun SetupGuideDialog(
                         modifier = Modifier.weight(1f),
                         label = if (googleDiscovered) stringResource(R.string.guide_pair_hdmi) else stringResource(R.string.common_add_by_ip),
                         icon = if (googleDiscovered) Icons.Default.SmartDisplay else Icons.Default.Add,
-                        accent = GooglePrimary,
+                        accent = halo.ringTop,
                         enabled = true,
                         onClick = if (googleDiscovered) onOpenGoogleTvSetup else onOpenManualDevice
                     )
                 }
             }
         },
-        containerColor = NeoSurface,
-        titleContentColor = PrimaryText,
-        textContentColor = SecondaryText
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
@@ -800,11 +808,15 @@ private fun GuideStep(
     complete: Boolean,
     accent: Color
 ) {
+    val halo = LocalHaloColors.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        color = NeoCard.copy(alpha = 0.76f),
-        border = BorderStroke(1.dp, accent.copy(alpha = if (complete) 0.48f else 0.18f))
+        color = halo.chipFill,
+        border = BorderStroke(
+            1.dp,
+            if (complete) halo.statusOnline.copy(alpha = 0.55f) else accent.copy(alpha = 0.40f)
+        )
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -814,15 +826,15 @@ private fun GuideStep(
             Surface(
                 modifier = Modifier.size(30.dp),
                 shape = CircleShape,
-                color = if (complete) SuccessGreen.copy(alpha = 0.18f) else accent.copy(alpha = 0.16f),
-                border = BorderStroke(1.dp, if (complete) SuccessGreen else accent.copy(alpha = 0.52f))
+                color = if (complete) halo.statusOnline.copy(alpha = 0.18f) else accent.copy(alpha = 0.16f),
+                border = BorderStroke(1.dp, if (complete) halo.statusOnline else accent.copy(alpha = 0.60f))
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (complete) {
                         Icon(
                             Icons.Default.Check,
                             contentDescription = null,
-                            tint = SuccessGreen,
+                            tint = halo.statusOnline,
                             modifier = Modifier.size(17.dp)
                         )
                     } else {
@@ -838,13 +850,13 @@ private fun GuideStep(
             Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    color = PrimaryText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = body,
-                    color = SecondaryText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
@@ -1694,9 +1706,9 @@ private fun ManualDeviceDialog(
                 }
             }
         },
-        containerColor = NeoSurface,
-        titleContentColor = PrimaryText,
-        textContentColor = SecondaryText
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
@@ -1751,9 +1763,9 @@ private fun GoogleTvAppDialog(
                 )
             }
         },
-        containerColor = NeoSurface,
-        titleContentColor = PrimaryText,
-        textContentColor = SecondaryText
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
@@ -1843,8 +1855,8 @@ private fun GoogleTvSetupDialog(
                 }
             }
         },
-        containerColor = NeoSurface,
-        titleContentColor = PrimaryText,
-        textContentColor = SecondaryText
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
