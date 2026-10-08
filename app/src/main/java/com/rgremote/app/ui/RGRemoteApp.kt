@@ -106,6 +106,7 @@ import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.roku.RokuPowerMode
 import com.rgremote.app.ui.theme.LocalHaloColors
+import com.rgremote.app.ui.theme.rememberRingBrush
 import com.rgremote.app.ui.theme.ThemeMode
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.duplicateDeviceCount
@@ -695,6 +696,7 @@ private fun SetupGuideDialog(
     val googlePaired = google?.id?.let { state.pairedDeviceIds.contains(it) } == true
     val hdmiMapped = mappedPort != null
     val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -714,7 +716,10 @@ private fun SetupGuideDialog(
             }
         },
         title = {
-            Text(stringResource(R.string.setup_guide_title))
+            Text(
+                text = stringResource(R.string.setup_guide_title),
+                style = MaterialTheme.typography.titleLarge.copy(brush = ringBrush)
+            )
         },
         text = {
             Column(
@@ -811,6 +816,7 @@ private fun GuideStep(
     accent: Color
 ) {
     val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -822,7 +828,7 @@ private fun GuideStep(
         border = if (complete) {
             BorderStroke(0.5.dp, halo.statusOnline.copy(alpha = 0.30f))
         } else {
-            null
+            BorderStroke(0.5.dp, ringBrush)
         }
     ) {
         Column(
@@ -863,8 +869,7 @@ private fun GuideStep(
             }
             Text(
                 text = title,
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleSmall.copy(brush = ringBrush),
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
@@ -882,11 +887,12 @@ private fun GuideStep(
 private fun SavedTvsSummary(state: RGRemoteUiState) {
     if (state.devices.isEmpty()) return
     val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         color = halo.dockWell,
-        border = BorderStroke(0.5.dp, halo.chipBorder)
+        border = BorderStroke(0.5.dp, ringBrush)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -894,7 +900,7 @@ private fun SavedTvsSummary(state: RGRemoteUiState) {
         ) {
             Text(
                 text = stringResource(R.string.saved_summary_title),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.copy(brush = ringBrush),
                 fontWeight = FontWeight.Bold,
                 color = PrimaryText
             )

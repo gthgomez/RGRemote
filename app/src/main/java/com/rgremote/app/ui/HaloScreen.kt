@@ -65,6 +65,7 @@ import com.rgremote.app.ui.ringGradientFill
 import com.rgremote.app.ui.theme.HaloColors
 import com.rgremote.app.ui.theme.HaloSpec
 import com.rgremote.app.ui.theme.ringGradientColors
+import com.rgremote.app.ui.theme.rememberRingBrush
 import com.rgremote.app.ui.theme.LocalHaloColors
 
 /**
@@ -482,6 +483,7 @@ private fun MoreControlsAffordance(
     onClick: () -> Unit,
 ) {
     val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -510,13 +512,14 @@ private fun MoreControlsAffordance(
             Icon(
                 imageVector = Icons.Filled.KeyboardArrowUp,
                 contentDescription = null,
-                tint = halo.moreControls
+                tint = Color.White,
+                modifier = Modifier.ringGradientFill(halo.ringGradientColors())
             )
         }
         Spacer(Modifier.height(6.dp))
         Text(
             text = stringResource(R.string.halo_more_controls),
-            color = halo.moreControls,
+            style = MaterialTheme.typography.labelSmall.copy(brush = ringBrush),
             fontSize = 11.sp,
             letterSpacing = 2.sp
         )
