@@ -94,6 +94,7 @@ fun HaloDpad(
     onSequenceEnd: () -> Unit,
     modifier: Modifier = Modifier,
     forcedPressedAction: RingAction? = null,
+    onPressedChange: (Boolean) -> Unit = {},
 ) {
     val halo = LocalHaloColors.current
     var pressed by rememberSaveable { mutableStateOf<RingAction?>(null) }
@@ -102,14 +103,22 @@ fun HaloDpad(
     val currentOnPress by rememberUpdatedState(onPress)
     val currentOnSequenceStart by rememberUpdatedState(onSequenceStart)
     val currentOnSequenceEnd by rememberUpdatedState(onSequenceEnd)
+    val currentOnPressedChange by rememberUpdatedState(onPressedChange)
     var repeatJob by remember { mutableStateOf<Job?>(null) }
 
+    fun updatePressed(value: RingAction?) {
+        if ((pressed != null) != (value != null)) {
+            currentOnPressedChange(value != null)
+        }
+        pressed = value
+    }
+
     fun flash(action: RingAction) {
-        pressed = action
+        updatePressed(action)
         currentOnPress(action)
         scope.launch {
             delay(150)
-            if (pressed == action) pressed = null
+            if (pressed == action) updatePressed(null)
         }
     }
 
@@ -127,7 +136,7 @@ fun HaloDpad(
                 down.consume()
                 val action = hitTestRing(down.position.x, down.position.y, size.width.toFloat())
                     ?: return@awaitEachGesture
-                pressed = action
+                updatePressed(action)
                 currentOnSequenceStart()
                 currentOnPress(action)
                 repeatJob?.cancel()
@@ -153,7 +162,7 @@ fun HaloDpad(
                 } finally {
                     repeatJob?.cancel()
                     repeatJob = null
-                    pressed = null
+                    updatePressed(null)
                     currentOnSequenceEnd()
                 }
             }
@@ -208,15 +217,18 @@ internal fun DrawScope.drawHaloRing(halo: HaloColors, pressed: RingAction?) {
     val radius = size.minDimension / 2f
     val center = Offset(radius, radius)
     val coreStroke = radius * 2f * HaloSpec.RingCoreStrokeFraction
+    // Sweep goes clockwise from 3 o'clock: bottom = 0.25, top = 0.75.
+    // Contract: light blue at top, violet mid, pink at bottom.
     val sweep = Brush.sweepGradient(
-        0.00f to halo.ringEdge,
-        0.12f to halo.ringViolet,
-        0.25f to halo.ringVioletCore,
-        0.42f to halo.ringBlend,
-        0.60f to halo.ringCyan,
-        0.75f to halo.ringCyanCore,
-        0.90f to halo.ringCyan,
-        1.00f to halo.ringEdge
+        0.00f to halo.ringMid,
+        0.15f to halo.ringBottom,
+        0.25f to halo.ringPink,
+        0.35f to halo.ringBottom,
+        0.50f to halo.ringMid,
+        0.65f to halo.ringMid,
+        0.75f to halo.ringTop,
+        0.90f to halo.ringMid,
+        1.00f to halo.ringMid
     )
     // Soft glow shoulder under the bright core.
     drawCircle(
@@ -232,11 +244,13 @@ internal fun DrawScope.drawHaloRing(halo: HaloColors, pressed: RingAction?) {
         center = center,
         style = Stroke(width = coreStroke, cap = StrokeCap.Round)
     )
+    // Band between the glowing ring and the select disc.
     val discRadius = radius * HaloSpec.CenterDiscFraction
+    drawCircle(color = halo.ringBandFill, radius = radius - coreStroke * 1.05f, center = center)
     drawCircle(color = halo.ringCenterFill, radius = discRadius, center = center)
     if (pressed == RingAction.SELECT) {
         drawCircle(
-            color = halo.ringCyanCore,
+            color = halo.ringAccent,
             radius = discRadius,
             center = center,
             style = Stroke(width = 3.dp.toPx())
@@ -278,6 +292,6 @@ private fun DrawScope.drawDirectionArrow(
         close()
     }
     rotate(degrees = angle, pivot = center) {
-        drawPath(path, color = halo.ringCyanCore)
+        drawPath(path, color = halo.ringAccent)
     }
 }

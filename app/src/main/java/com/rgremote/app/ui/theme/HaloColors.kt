@@ -5,8 +5,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Halo remote visual contract tokens, sampled from
- * `docs/reference/halo-mockup-dark-light.png` (see `docs/ui-target.md`).
+ * Halo remote visual contract tokens, sampled from the reference mockups in
+ * `docs/reference/` (see `docs/ui-target.md`).
  *
  * Everything here flips between dark and light. Theme-invariant accents
  * (RgSuccess, RgDanger, ecosystem colors) stay in [Palette.kt]. UI code must
@@ -24,16 +24,17 @@ data class HaloColors(
     val bloomPink: Color,
     // Wordmark accent ("RG").
     val wordmarkAccent: Color,
-    // Ring sweep gradient stops (violet side -> cyan side) and edge falloff.
-    val ringViolet: Color,
-    val ringVioletCore: Color,
-    val ringBlend: Color,
-    val ringCyan: Color,
-    val ringCyanCore: Color,
-    val ringEdge: Color,
-    // Center select disc.
+    // Ring sweep gradient stops: light blue at top -> violet -> pink at bottom.
+    val ringTop: Color,
+    val ringMid: Color,
+    val ringBottom: Color,
+    val ringPink: Color,
+    // Band between the glowing ring and the center disc, and the disc itself.
+    val ringBandFill: Color,
     val ringCenterFill: Color,
     val ringCenterBorder: Color,
+    // Pressed-state accents (direction arrow, select pulse, volume rail).
+    val ringAccent: Color,
     // Device chip glass.
     val chipFill: Color,
     val chipBorder: Color,
@@ -44,7 +45,7 @@ data class HaloColors(
     val dockWell: Color,
     val dockIcon: Color,
     val powerWellTint: Color,
-    // More Controls affordance.
+    // More Controls affordance and sheet.
     val moreControls: Color,
     // Connection status dot/label colors (contrast-tuned per theme).
     val statusOnline: Color,
@@ -61,14 +62,14 @@ val DarkHaloColors = HaloColors(
     bloomBlue = Color(0xFF1C53C9),
     bloomPink = Color(0x00000000),
     wordmarkAccent = Color(0xFFA26DF6),
-    ringViolet = Color(0xFF8C5AE8),
-    ringVioletCore = Color(0xFFD58EFA),
-    ringBlend = Color(0xFF8379F9),
-    ringCyan = Color(0xFF4497FB),
-    ringCyanCore = Color(0xFFC0EAFE),
-    ringEdge = Color(0xFF2B2193),
-    ringCenterFill = Color(0xFF101543),
+    ringTop = Color(0xFF4FB8FF),
+    ringMid = Color(0xFF6D7CFF),
+    ringBottom = Color(0xFF9B5CF6),
+    ringPink = Color(0xFFD86DDF),
+    ringBandFill = Color(0xFF131A40),
+    ringCenterFill = Color(0xFF0C112E),
     ringCenterBorder = Color.White.copy(alpha = 0.08f),
+    ringAccent = Color(0xFFBFE4FF),
     chipFill = Color(0xFF14183A).copy(alpha = 0.85f),
     chipBorder = Color.White.copy(alpha = 0.10f),
     dockFill = Color(0xFF161B44).copy(alpha = 0.78f),
@@ -92,14 +93,14 @@ val LightHaloColors = HaloColors(
     bloomBlue = Color(0xFFB4E4FC),
     bloomPink = Color(0xFFFFC1D0),
     wordmarkAccent = Color(0xFF6D3FD6),
-    ringViolet = Color(0xFF9C9CE4),
-    ringVioletCore = Color(0xFFC9C2FA),
-    ringBlend = Color(0xFFB4C4FA),
-    ringCyan = Color(0xFF7DD0F5),
-    ringCyanCore = Color(0xFFECFBFE),
-    ringEdge = Color(0xFFB9BCF0),
+    ringTop = Color(0xFFA8D8FF),
+    ringMid = Color(0xFFB4C0FF),
+    ringBottom = Color(0xFFC9A6F5),
+    ringPink = Color(0xFFF2BEE8),
+    ringBandFill = Color(0xFFEDF1FC),
     ringCenterFill = Color.White,
     ringCenterBorder = Color(0xFFC9C9F5),
+    ringAccent = Color(0xFF3D55C8),
     chipFill = Color.White,
     chipBorder = Color(0xFFE1E6F5),
     dockFill = Color.White.copy(alpha = 0.92f),
@@ -119,8 +120,8 @@ val LocalHaloColors = staticCompositionLocalOf { DarkHaloColors }
 
 /**
  * Measured geometry contract from `docs/ui-target.md`. Fractions are relative
- * to screen width (ring) or parent size (the rest); components in PR02/PR03
- * must consume these instead of re-declaring dimensions.
+ * to screen width (ring) or parent size (the rest); components must consume
+ * these instead of re-declaring dimensions.
  */
 object HaloSpec {
     /** Ring outer diameter as a fraction of screen width (~290dp at 412dp). */
@@ -130,13 +131,13 @@ object HaloSpec {
     const val RingMaxDiameterDp = 420f
 
     /** Center select disc diameter as a fraction of the ring diameter. */
-    const val CenterDiscFraction = 0.54f
+    const val CenterDiscFraction = 0.60f
 
     /** Ring bright core stroke width as a fraction of the ring diameter (~40dp at 290dp). */
     const val RingCoreStrokeFraction = 0.14f
 
     /** Select zone radius as a fraction of the ring radius (hit-testing contract). */
-    const val SelectZoneRadiusFraction = 0.49f
+    const val SelectZoneRadiusFraction = 0.58f
 
     /** Screen horizontal padding in dp. */
     const val ScreenHorizontalPaddingDp = 20f
@@ -158,4 +159,7 @@ object HaloSpec {
 
     /** Minimum touch target for the More Controls affordance in dp. */
     const val MoreControlsMinTargetDp = 48f
+
+    /** Circular well diameter for sheet volume controls in dp. */
+    const val SheetWellDp = 56f
 }

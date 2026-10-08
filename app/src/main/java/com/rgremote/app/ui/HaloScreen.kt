@@ -1,5 +1,8 @@
 package com.rgremote.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,7 +24,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.Icon
@@ -140,6 +145,11 @@ internal fun HaloRemoteScreen(
                     maxHeight * 0.96f,
                     HaloSpec.RingMaxDiameterDp.dp
                 )
+                var ringActive by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
             HaloDpad(
                 enabled = controlsEnabled,
                 onSequenceStart = { dpadGeneration = onBeginDpadSequence() },
@@ -153,8 +163,22 @@ internal fun HaloRemoteScreen(
                     }
                 },
                 onSequenceEnd = onEndDpadSequence,
+                onPressedChange = { ringActive = it },
                 modifier = Modifier.width(ringDiameter)
                 )
+                    // The +/− rail only appears while the ring is touched.
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = ringActive,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    ) {
+                        RingVolumeRail(
+                            enabled = volumeEnabled,
+                            onVolume = onVolume
+                        )
+                    }
+                }
             }
             Spacer(Modifier.weight(0.4f))
             GlassActionDock(
@@ -388,7 +412,7 @@ private fun HaloDeviceChip(
         )
         Spacer(Modifier.width(10.dp))
         Row(
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.weight(1f, fill = true),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -406,7 +430,7 @@ private fun HaloDeviceChip(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.width(4.dp))
         Icon(
             imageVector = Icons.Filled.KeyboardArrowDown,
             contentDescription = stringResource(R.string.halo_cd_switch_device),
@@ -463,3 +487,52 @@ private fun MoreControlsAffordance(
 }
 
 private const val SwipeUpThresholdPx = 40f
+
+/**
+ * The mockup's +/− volume controls flanking the ring's right edge.
+ */
+@Composable
+private fun RingVolumeRail(
+    enabled: Boolean,
+    onVolume: (com.rgremote.app.domain.VolumeCommand) -> Unit,
+) {
+    val halo = LocalHaloColors.current
+    Column(
+        modifier = Modifier.padding(end = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .alpha(if (enabled) 1f else 0.35f)
+                .clickable(
+                    enabled = enabled,
+                    onClickLabel = stringResource(R.string.remote_volume_up)
+                ) { onVolume(com.rgremote.app.domain.VolumeCommand.UP) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = null,
+                tint = halo.dockIcon
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .alpha(if (enabled) 1f else 0.35f)
+                .clickable(
+                    enabled = enabled,
+                    onClickLabel = stringResource(R.string.remote_volume_down)
+                ) { onVolume(com.rgremote.app.domain.VolumeCommand.DOWN) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Remove,
+                contentDescription = null,
+                tint = halo.dockIcon
+            )
+        }
+    }
+}
