@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +51,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.rgremote.app.R
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.RegisteredDevice
@@ -145,7 +149,20 @@ internal fun HaloRemoteScreen(
                     maxHeight * 0.96f,
                     HaloSpec.RingMaxDiameterDp.dp
                 )
-                var ringActive by remember { mutableStateOf(false) }
+                var railVisible by remember { mutableStateOf(false) }
+                var hideRailJob by remember { mutableStateOf<Job?>(null) }
+                val railScope = rememberCoroutineScope()
+                val showRail = {
+                    hideRailJob?.cancel()
+                    railVisible = true
+                }
+                val scheduleRailHide = {
+                    hideRailJob?.cancel()
+                    hideRailJob = railScope.launch {
+                        delay(RailLingerMillis)
+                        railVisible = false
+                    }
+                }
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -163,12 +180,17 @@ internal fun HaloRemoteScreen(
                     }
                 },
                 onSequenceEnd = onEndDpadSequence,
-                onPressedChange = { ringActive = it },
+                onPressedChange = { active ->
+                    if (active) showRail() else scheduleRailHide()
+                },
+                // Any touch in the ring area reveals the +/- rail, even a miss.
+                onDown = { showRail() },
                 modifier = Modifier.width(ringDiameter)
                 )
-                    // The +/− rail only appears while the ring is touched.
+                    // The +/− rail appears on any ring-area touch and lingers
+                    // briefly after release, so users can see it before pressing.
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = ringActive,
+                        visible = railVisible,
                         enter = fadeIn(),
                         exit = fadeOut(),
                         modifier = Modifier.align(Alignment.CenterEnd)
@@ -536,3 +558,5 @@ private fun RingVolumeRail(
         }
     }
 }
+
+private const val RailLingerMillis = 4000L

@@ -719,7 +719,7 @@ private fun SetupGuideDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
                     text = stringResource(R.string.setup_guide_intro),
@@ -811,23 +811,32 @@ private fun GuideStep(
     val halo = LocalHaloColors.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = halo.chipFill,
-        border = BorderStroke(
-            1.dp,
-            if (complete) halo.statusOnline.copy(alpha = 0.55f) else accent.copy(alpha = 0.40f)
-        )
+        shape = RoundedCornerShape(16.dp),
+        color = if (complete) {
+            halo.statusOnline.copy(alpha = 0.10f)
+        } else {
+            halo.dockWell
+        },
+        border = if (complete) {
+            BorderStroke(0.5.dp, halo.statusOnline.copy(alpha = 0.30f))
+        } else {
+            null
+        }
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top
         ) {
             Surface(
-                modifier = Modifier.size(30.dp),
+                modifier = Modifier.size(26.dp),
                 shape = CircleShape,
-                color = if (complete) halo.statusOnline.copy(alpha = 0.18f) else accent.copy(alpha = 0.16f),
-                border = BorderStroke(1.dp, if (complete) halo.statusOnline else accent.copy(alpha = 0.60f))
+                color = if (complete) halo.statusOnline.copy(alpha = 0.16f) else accent.copy(alpha = 0.14f),
+                border = if (complete) {
+                    BorderStroke(0.5.dp, halo.statusOnline.copy(alpha = 0.50f))
+                } else {
+                    BorderStroke(0.5.dp, accent.copy(alpha = 0.35f))
+                }
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     if (complete) {
@@ -835,7 +844,7 @@ private fun GuideStep(
                             Icons.Default.Check,
                             contentDescription = null,
                             tint = halo.statusOnline,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     } else {
                         Text(
@@ -867,11 +876,12 @@ private fun GuideStep(
 @Composable
 private fun SavedTvsSummary(state: RGRemoteUiState) {
     if (state.devices.isEmpty()) return
+    val halo = LocalHaloColors.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = NeoCard.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, GlassStroke)
+        shape = RoundedCornerShape(16.dp),
+        color = halo.dockWell,
+        border = BorderStroke(0.5.dp, halo.chipBorder)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
