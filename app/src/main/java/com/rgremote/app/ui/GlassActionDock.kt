@@ -1,5 +1,7 @@
 package com.rgremote.app.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -30,6 +33,7 @@ import com.rgremote.app.ui.theme.HaloSpec
 import com.rgremote.app.ui.theme.LocalHaloColors
 
 private const val DisabledAlpha = 0.35f
+private const val AsleepAlpha = 0.25f
 
 /**
  * The mockup's segmented glass dock: Back | Home | Power in one floating
@@ -38,6 +42,8 @@ private const val DisabledAlpha = 0.35f
 @Composable
 internal fun GlassActionDock(
     enabled: Boolean,
+    /** False when the screen is idle: the dock dims and stops responding. */
+    awake: Boolean,
     power: PowerPresentation,
     powerEnabled: Boolean,
     onBack: () -> Unit,
@@ -47,17 +53,26 @@ internal fun GlassActionDock(
 ) {
     val halo = LocalHaloColors.current
     val shape = RoundedCornerShape(HaloSpec.DockHeightDp.dp / 2)
+    val dockAlpha by animateFloatAsState(
+        targetValue = when {
+            !enabled -> DisabledAlpha
+            awake -> 1f
+            else -> AsleepAlpha
+        },
+        animationSpec = tween(durationMillis = 300),
+        label = "dockAwake"
+    )
     Row(
         modifier = modifier
             .height(HaloSpec.DockHeightDp.dp)
             .background(halo.dockFill, shape)
             .border(1.dp, halo.dockBorder, shape)
-            .alpha(if (enabled) 1f else DisabledAlpha),
+            .alpha(dockAlpha),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         DockSegment(
-            enabled = enabled,
+            enabled = enabled && awake,
             onAction = onBack,
             contentDescription = stringResource(R.string.remote_back)
         ) {
@@ -69,7 +84,7 @@ internal fun GlassActionDock(
         }
         DockSeparator()
         DockSegment(
-            enabled = enabled,
+            enabled = enabled && awake,
             onAction = onHome,
             contentDescription = stringResource(R.string.remote_home)
         ) {
@@ -82,7 +97,7 @@ internal fun GlassActionDock(
             else -> MaterialTheme.colorScheme.error
         }
         DockSegment(
-            enabled = enabled && powerEnabled,
+            enabled = enabled && awake && powerEnabled,
             onAction = onPower,
             contentDescription = if (power.isWake) {
                 stringResource(R.string.remote_wake)
