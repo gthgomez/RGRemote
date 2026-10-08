@@ -39,3 +39,13 @@ Run from the repository root:
 ```powershell
 .\gradlew.bat assembleDebug
 ```
+
+## Privacy
+
+RGRemote collects no data: no analytics, no ads, no cloud backend. See
+[PRIVACY.md](PRIVACY.md).
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE). Copyright 2026
+Jonathan Gomez Aguilar.
