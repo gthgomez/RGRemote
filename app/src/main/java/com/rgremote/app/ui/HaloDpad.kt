@@ -95,6 +95,7 @@ fun HaloDpad(
     modifier: Modifier = Modifier,
     forcedPressedAction: RingAction? = null,
     onPressedChange: (Boolean) -> Unit = {},
+    onDown: () -> Unit = {},
 ) {
     val halo = LocalHaloColors.current
     var pressed by rememberSaveable { mutableStateOf<RingAction?>(null) }
@@ -104,6 +105,7 @@ fun HaloDpad(
     val currentOnSequenceStart by rememberUpdatedState(onSequenceStart)
     val currentOnSequenceEnd by rememberUpdatedState(onSequenceEnd)
     val currentOnPressedChange by rememberUpdatedState(onPressedChange)
+    val currentOnDown by rememberUpdatedState(onDown)
     var repeatJob by remember { mutableStateOf<Job?>(null) }
 
     fun updatePressed(value: RingAction?) {
@@ -114,6 +116,7 @@ fun HaloDpad(
     }
 
     fun flash(action: RingAction) {
+        currentOnDown()
         updatePressed(action)
         currentOnPress(action)
         scope.launch {
@@ -134,6 +137,7 @@ fun HaloDpad(
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 down.consume()
+                currentOnDown()
                 val action = hitTestRing(down.position.x, down.position.y, size.width.toFloat())
                     ?: return@awaitEachGesture
                 updatePressed(action)
