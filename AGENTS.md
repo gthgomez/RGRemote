@@ -101,6 +101,13 @@ adb install -r app\build\outputs\apk\release\app-release.apk
 If SDK paths differ, discover the installed build-tools version locally instead of
 guessing.
 
+## Cursor Cloud specific instructions
+
+- JDK 17 is the Gradle JVM (`JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`). Login shells load `/etc/profile.d/rgremote-android.sh`. `java`, `javac`, `adb`, and `android` are also linked from `/usr/local/bin`.
+- The Android SDK is `/opt/android-sdk` (platform 36, build-tools 36.0.0). `local.properties` is gitignored. The environment install writes `sdk.dir=/opt/android-sdk`. Recreate that single line if a clean checkout drops the file.
+- There is no dev server. Run `./gradlew :app:assembleDebug :app:testDebugUnitTest`. On a memory-constrained VM, add `--no-daemon -Dorg.gradle.jvmargs="-Xmx1536m -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8 -Dorg.sqlite.tmpdir=."`.
+- A `medium_phone` emulator image is installed for UI checks. `/dev/kvm` is made writable on boot. Start it with `android --no-metrics --sdk=/opt/android-sdk emulator start --headless medium_phone`. The debug application id is `com.rgremote.app.debug`.
+
 ## Handoff Format
 
 For implementation work, the final handoff should include: risk/status, changed
