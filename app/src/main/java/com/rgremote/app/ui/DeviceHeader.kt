@@ -100,6 +100,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rgremote.app.R
+import com.rgremote.app.ui.theme.ringGradientColors
+import com.rgremote.app.ui.theme.rememberRingBrush
+import com.rgremote.app.ui.theme.LocalHaloColors
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
@@ -290,32 +293,75 @@ internal fun HeaderOverflowMenu(
     onRefreshStatus: () -> Unit,
     onOpenSetupGuide: () -> Unit,
 ) {
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+    val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(16.dp),
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
         DropdownMenuItem(
-            text = { Text(if (state.isScanning) stringResource(R.string.common_scanning) else stringResource(R.string.header_menu_scan)) },
+            text = {
+                Text(
+                    if (state.isScanning) stringResource(R.string.common_scanning) else stringResource(R.string.header_menu_scan),
+                    style = MaterialTheme.typography.bodyMedium.copy(brush = ringBrush)
+                )
+            },
             onClick = {
                 onDismiss()
                 if (!state.isScanning) onScan()
             },
             enabled = !state.isScanning,
-            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) }
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.ringGradientFill(halo.ringGradientColors())
+                )
+            }
         )
         DropdownMenuItem(
-            text = { Text(stringResource(R.string.header_menu_refresh_status)) },
+            text = {
+                Text(
+                    stringResource(R.string.header_menu_refresh_status),
+                    style = MaterialTheme.typography.bodyMedium.copy(brush = ringBrush)
+                )
+            },
             onClick = {
                 onDismiss()
                 onRefreshStatus()
             },
             enabled = selected != null,
-            leadingIcon = { Icon(Icons.Default.Check, contentDescription = null) }
+            leadingIcon = {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.ringGradientFill(halo.ringGradientColors())
+                )
+            }
         )
         DropdownMenuItem(
-            text = { Text(stringResource(R.string.header_menu_connection_guide)) },
+            text = {
+                Text(
+                    stringResource(R.string.header_menu_connection_guide),
+                    style = MaterialTheme.typography.bodyMedium.copy(brush = ringBrush)
+                )
+            },
             onClick = {
                 onDismiss()
                 onOpenSetupGuide()
             },
-            leadingIcon = { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = null) }
+            leadingIcon = {
+                Icon(
+                    Icons.AutoMirrored.Filled.HelpOutline,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.ringGradientFill(halo.ringGradientColors())
+                )
+            }
         )
     }
 }

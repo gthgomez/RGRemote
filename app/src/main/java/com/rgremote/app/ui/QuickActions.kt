@@ -97,6 +97,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rgremote.app.R
+import com.rgremote.app.ui.theme.ringGradientColors
+import com.rgremote.app.ui.theme.LocalHaloColors
+import com.rgremote.app.ui.theme.rememberRingBrush
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
@@ -253,38 +256,65 @@ internal fun KeyboardPanel(
             placeholder = { Text("") }
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val halo = LocalHaloColors.current
+            val ringBrush = rememberRingBrush()
             Button(
                 modifier = Modifier.weight(1.6f).height(48.dp),
                 enabled = draft.isNotBlank(),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = halo.dockWell, contentColor = Color.White),
+                border = BorderStroke(1.dp, ringBrush),
                 contentPadding = PaddingValues(horizontal = 10.dp),
                 onClick = {
                     onSendText(draft)
                     draft = ""
                 }
             ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .ringGradientFill(halo.ringGradientColors())
+                )
                 Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.keyboard_send), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    stringResource(R.string.keyboard_send),
+                    style = MaterialTheme.typography.labelLarge.copy(brush = ringBrush),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             Button(
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = NeoCard.copy(alpha = 0.9f), contentColor = PrimaryText),
+                colors = ButtonDefaults.buttonColors(containerColor = halo.dockWell, contentColor = Color.White),
+                border = BorderStroke(0.5.dp, ringBrush),
                 contentPadding = PaddingValues(horizontal = 10.dp),
                 onClick = onEnter
             ) {
-                Text(stringResource(R.string.keyboard_enter), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    stringResource(R.string.keyboard_enter),
+                    style = MaterialTheme.typography.labelLarge.copy(brush = ringBrush),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             Button(
                 modifier = Modifier.weight(1.4f).height(48.dp),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = NeoCard.copy(alpha = 0.9f), contentColor = PrimaryText),
+                colors = ButtonDefaults.buttonColors(containerColor = halo.dockWell, contentColor = Color.White),
+                border = BorderStroke(0.5.dp, ringBrush),
                 contentPadding = PaddingValues(horizontal = 10.dp),
                 onClick = onBackspace
             ) {
-                Text(stringResource(R.string.keyboard_backspace), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    stringResource(R.string.keyboard_backspace),
+                    style = MaterialTheme.typography.labelLarge.copy(brush = ringBrush),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -602,16 +632,31 @@ private fun LaunchButton(
     launchLabel: String,
     onLaunch: () -> Unit
 ) {
+    val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     Button(
-        modifier = modifier.height(54.dp).neoGlow(accent, 0.18f, radius = 14.dp),
+        modifier = modifier.height(54.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+        colors = ButtonDefaults.buttonColors(containerColor = halo.dockWell, contentColor = Color.White),
+        border = BorderStroke(1.dp, ringBrush),
         contentPadding = PaddingValues(horizontal = 12.dp),
         onClick = onLaunch
     ) {
-        Icon(Icons.Default.RocketLaunch, contentDescription = null, modifier = Modifier.size(18.dp))
+        Icon(
+            Icons.Default.RocketLaunch,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier
+                .size(18.dp)
+                .ringGradientFill(halo.ringGradientColors())
+        )
         Spacer(Modifier.width(8.dp))
-        Text(launchLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            launchLabel,
+            style = MaterialTheme.typography.labelLarge.copy(brush = ringBrush),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -672,23 +717,32 @@ private fun HdmiInputButton(
     enabled: Boolean,
     onSwitchInput: (HdmiPort) -> Unit
 ) {
+    val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     Button(
         modifier = modifier.height(46.dp),
         enabled = enabled,
         shape = RoundedCornerShape(12.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) accent.copy(alpha = 0.88f) else NeoCard.copy(alpha = 0.72f),
-            contentColor = if (selected) Color.White else SecondaryText
+            containerColor = if (selected) accent.copy(alpha = 0.24f) else halo.dockWell,
+            contentColor = Color.White
         ),
-        border = BorderStroke(1.dp, if (selected) accent else GlassStroke),
+        border = BorderStroke(if (selected) 1.25.dp else 0.5.dp, ringBrush),
         contentPadding = PaddingValues(horizontal = 6.dp),
         onClick = { onSwitchInput(port) }
     ) {
-        Icon(Icons.Default.SmartDisplay, contentDescription = null, modifier = Modifier.size(16.dp))
+        Icon(
+            Icons.Default.SmartDisplay,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier
+                .size(16.dp)
+                .ringGradientFill(halo.ringGradientColors())
+        )
         Spacer(Modifier.width(4.dp))
         Text(
             text = port.displayName.replace(" ", ""),
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelMedium.copy(brush = ringBrush),
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
