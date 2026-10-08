@@ -89,8 +89,10 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.unit.LayoutDirection
@@ -304,6 +306,29 @@ internal fun Modifier.holdRepeatPress(
         }
     }
 }
+
+/**
+ * Fills whatever is drawn by the wrapped content with a vertical gradient of
+ * [colors], using the content's alpha as the mask. Icons must be drawn in a
+ * fully opaque tint (e.g. Color.White) for the gradient to show at full
+ * strength. Requires an offscreen compositing layer so the blend does not
+ * leak to the background.
+ */
+internal fun Modifier.ringGradientFill(colors: List<Color>): Modifier = this
+    .graphicsLayer {
+        compositingStrategy = CompositingStrategy.Offscreen
+    }
+    .drawWithCache {
+        val brush = Brush.verticalGradient(
+            colors = colors,
+            startY = 0f,
+            endY = size.height
+        )
+        onDrawWithContent {
+            drawContent()
+            drawRect(brush = brush, blendMode = BlendMode.SrcIn)
+        }
+    }
 
 /** Wraps a remote command action with a single light haptic tick, guarded by the host View's haptic setting. */
 @Composable
