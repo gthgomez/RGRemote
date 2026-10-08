@@ -68,7 +68,7 @@
     <string name="keyboard_send">Send</string>
     <string name="keyboard_enter">Enter</string>
     <string name="keyboard_backspace">⌫ Backspace</string>
-    <string name="gt_text_skipped">Some characters aren\'t supported on Google TV and were skipped</string>
+    <string name="text_skipped">Some characters aren\'t supported by this TV and were skipped</string>
     <string name="launch_placeholder_package">Package name or deep link</string>
     <string name="launch_placeholder_channel">Channel ID or deep link</string>
     <string name="shortcuts_title">Shortcuts</string>

@@ -118,7 +118,8 @@ import com.rgremote.app.domain.VolumeCommand
 private val TabletMaxContentWidth = 640.dp
 
 @Composable
-fun RGRemoteApp(viewModel: RGRemoteViewModel) {    val state by viewModel.uiState.collectAsStateWithLifecycle()
+fun RGRemoteApp(viewModel: RGRemoteViewModel) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     RGRemoteScreen(
         state = state,
         onScan = viewModel::scan,

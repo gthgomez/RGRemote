@@ -27,14 +27,16 @@ class RokuNetworkAccessException(
 )
 
 /**
- * ECP literal-text key for a character: alphanumerics go as-is, everything else
- * is percent-encoded (space becomes %20, not +).
+ * ECP literal-text key for a character, or null when it cannot be typed:
+ * alphanumerics go as-is, other printable ASCII is percent-encoded (space
+ * becomes %20, not +). Non-ASCII returns null because one Lit_ keypress
+ * carries a single byte — multi-byte UTF-8 would garble on the TV.
  */
-internal fun rokuLitKey(char: Char): String =
-    if (char.isLetterOrDigit()) {
-        "Lit_$char"
-    } else {
-        "Lit_" + URLEncoder.encode(char.toString(), Charsets.UTF_8).replace("+", "%20")
+internal fun rokuLitKey(char: Char): String? =
+    when {
+        char.code !in ' '.code..'~'.code -> null
+        char.isLetterOrDigit() -> "Lit_$char"
+        else -> "Lit_" + URLEncoder.encode(char.toString(), Charsets.UTF_8).replace("+", "%20")
     }
 
 class RokuEcpClient(
@@ -51,7 +53,11 @@ class RokuEcpClient(
                 RemoteCommand.PlayPause -> post(device, "keypress/Play")
                 RemoteCommand.Rewind -> post(device, "keypress/Rev")
                 RemoteCommand.FastForward -> post(device, "keypress/Fwd")
-                is RemoteCommand.Character -> post(device, "keypress/${rokuLitKey(command.char)}")
+                is RemoteCommand.Character -> {
+                    val key = rokuLitKey(command.char)
+                        ?: throw IOException("Character '${command.char}' cannot be typed on Roku")
+                    post(device, "keypress/$key")
+                }
                 RemoteCommand.KeyboardEnter -> post(device, "keypress/Enter")
                 RemoteCommand.KeyboardBackspace -> post(device, "keypress/Backspace")
                 is RemoteCommand.Volume -> post(device, "keypress/${command.command.rokuKey()}")

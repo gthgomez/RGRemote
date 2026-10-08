@@ -35,4 +35,21 @@ class GoogleTvKeyCodeTest {
         assertNull('?'.googleTvKeyCode())
         assertNull('中'.googleTvKeyCode())
     }
+
+    @Test
+    fun `shifted punctuation without unshifted keycode returns null`() {
+        assertNull('_'.googleTvKeyCode())
+        assertNull('"'.googleTvKeyCode())
+        assertNull(':'.googleTvKeyCode())
+        assertNull('<'.googleTvKeyCode())
+        assertNull('>'.googleTvKeyCode())
+    }
+
+    @Test
+    fun `symbol keycodes keep their unshifted symbols`() {
+        assertEquals(80L, '@'.googleTvKeyCode())
+        assertEquals(81L, '+'.googleTvKeyCode())
+        assertEquals(82L, '*'.googleTvKeyCode())
+        assertEquals(83L, '#'.googleTvKeyCode())
+    }
 }

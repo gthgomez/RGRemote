@@ -67,8 +67,11 @@ internal object GoogleTvRemoteProtocol {
 
 /**
  * Android keycode for a character, or null when the protocol path here cannot
- * express it (uppercase arrives as its lowercase letter — key injection carries
- * no shift meta).
+ * express it: uppercase collapses to its lowercase letter, and shifted
+ * punctuation (no dedicated unshifted keycode) is skipped — key injection
+ * carries no shift meta, so e.g. '_' would silently arrive as '-'.
+ * KEYCODE_PLUS/AT/STAR/POUND are excluded from that rule: Android defines them
+ * as symbol keycodes whose unshifted mapping is the symbol itself.
  */
 internal fun Char.googleTvKeyCode(): Long? =
     when (this) {
@@ -81,7 +84,6 @@ internal fun Char.googleTvKeyCode(): Long? =
         '.' -> GoogleTvRemoteProtocol.KEYCODE_PERIOD
         ',' -> GoogleTvRemoteProtocol.KEYCODE_COMMA
         '-' -> GoogleTvRemoteProtocol.KEYCODE_MINUS
-        '_' -> GoogleTvRemoteProtocol.KEYCODE_MINUS
         '=' -> GoogleTvRemoteProtocol.KEYCODE_EQUALS
         '+' -> GoogleTvRemoteProtocol.KEYCODE_PLUS
         '@' -> GoogleTvRemoteProtocol.KEYCODE_AT

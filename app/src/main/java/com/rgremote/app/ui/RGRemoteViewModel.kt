@@ -28,6 +28,7 @@ import com.rgremote.app.google.GoogleTvPairingManager
 import com.rgremote.app.roku.RokuEcpClient
 import com.rgremote.app.roku.RokuConnectionCoordinator
 import com.rgremote.app.roku.displayMessage
+import com.rgremote.app.roku.rokuLitKey
 import com.rgremote.app.ui.controller.DeviceCommandExecutor
 import com.rgremote.app.ui.controller.DeviceStatusWriter
 import com.rgremote.app.ui.controller.DiscoveryCoordinator
@@ -573,19 +574,20 @@ class RGRemoteViewModel(
         send(RemoteCommand.Volume(command))
     }
 
-    /** Types [text] into the TV as one ordered batch. Google TV skips characters the keycode path can't express. */
+    /** Types [text] into the TV as one ordered batch, skipping characters the ecosystem's protocol can't express. */
     fun sendText(text: String) {
         if (text.isEmpty()) return
         val device = uiState.value.selectedDevice ?: return
-        if (device.type == DeviceType.GOOGLE_TV) {
-            val mappable = text.filter { it.googleTvKeyCode() != null }
-            if (mappable.length < text.length) {
-                feedback.show(context.getString(R.string.gt_text_skipped))
+        val typable = text.filter { char ->
+            when (device.type) {
+                DeviceType.GOOGLE_TV -> char.googleTvKeyCode() != null
+                DeviceType.ROKU_TV -> rokuLitKey(char) != null
             }
-            commandExecutor.sendSequence(mappable.map { RemoteCommand.Character(it) })
-        } else {
-            commandExecutor.sendSequence(text.map { RemoteCommand.Character(it) })
         }
+        if (typable.length < text.length) {
+            feedback.show(context.getString(R.string.text_skipped))
+        }
+        commandExecutor.sendSequence(typable.map { RemoteCommand.Character(it) })
     }
 
     fun sendKeyboardEnter() {

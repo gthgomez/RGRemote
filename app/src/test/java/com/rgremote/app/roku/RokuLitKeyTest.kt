@@ -1,6 +1,7 @@
 package com.rgremote.app.roku
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class RokuLitKeyTest {
@@ -20,5 +21,12 @@ class RokuLitKeyTest {
     fun `punctuation is percent-encoded`() {
         assertEquals("Lit_%21", rokuLitKey('!'))
         assertEquals("Lit_%2C", rokuLitKey(','))
+    }
+
+    @Test
+    fun `non-ascii returns null`() {
+        assertNull(rokuLitKey('é'))
+        assertNull(rokuLitKey('中'))
+        assertNull(rokuLitKey('£'))
     }
 }
