@@ -40,6 +40,7 @@ import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.HdmiPort
 import com.rgremote.app.domain.VolumeCommand
 import com.rgremote.app.ui.theme.HaloSpec
+import com.rgremote.app.ui.theme.rememberRingBrush
 import com.rgremote.app.ui.theme.LocalHaloColors
 
 /**
@@ -73,6 +74,7 @@ internal fun MoreControlsSheet(
     onDismiss: () -> Unit,
 ) {
     val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface
@@ -87,8 +89,7 @@ internal fun MoreControlsSheet(
         ) {
             Text(
                 text = stringResource(R.string.halo_more_controls),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium.copy(brush = ringBrush),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp)
@@ -237,7 +238,7 @@ private fun SheetSeparator() {
     )
 }
 
-/** Halo-styled text pill: glass fill, hairline border, dock-icon text. */
+/** Halo-styled text pill: glass fill, ring-gradient border and label. */
 @Composable
 private fun GlassPill(
     label: String,
@@ -245,19 +246,19 @@ private fun GlassPill(
     modifier: Modifier = Modifier,
 ) {
     val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     val shape = RoundedCornerShape(24.dp)
     Box(
         modifier = modifier
             .height(48.dp)
             .background(halo.dockFill, shape)
-            .border(1.dp, halo.dockBorder, shape)
+            .border(1.dp, ringBrush, shape)
             .clickable(onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = halo.dockIcon,
-            fontSize = 15.sp,
+            style = MaterialTheme.typography.labelLarge.copy(brush = ringBrush),
             fontWeight = FontWeight.Medium
         )
     }

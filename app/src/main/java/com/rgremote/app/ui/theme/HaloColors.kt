@@ -1,7 +1,10 @@
 package com.rgremote.app.ui.theme
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -125,6 +128,13 @@ fun HaloColors.ringGradientColors(): List<Color> = listOf(
     ringBottom,
     ringPink
 )
+
+/** Remembered vertical brush over the ring gradient, for text and borders. */
+@Composable
+fun rememberRingBrush(): Brush {
+    val halo = LocalHaloColors.current
+    return remember(halo) { Brush.verticalGradient(halo.ringGradientColors()) }
+}
 
 /**
  * Measured geometry contract from `docs/ui-target.md`. Fractions are relative
