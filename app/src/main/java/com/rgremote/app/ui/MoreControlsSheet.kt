@@ -1,36 +1,52 @@
 package com.rgremote.app.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeMute
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.HdmiPort
 import com.rgremote.app.domain.VolumeCommand
+import com.rgremote.app.ui.theme.HaloSpec
+import com.rgremote.app.ui.theme.LocalHaloColors
 
 /**
- * Secondary controls surface for the halo screen: volume first (the most-used
- * hidden control), then the existing shortcut and utilities docks, and entry
- * points to Apps and Settings. Reuses the existing dock composables — no
- * duplicated behavior.
+ * Secondary controls surface for the halo screen. Styled with the halo glass
+ * language rather than default Material buttons: circular icon wells for
+ * volume, the existing shortcut/utilities docks, and glass pills for Apps and
+ * Settings.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,39 +72,70 @@ internal fun MoreControlsSheet(
     onKeyboardBackspace: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val halo = LocalHaloColors.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = HaloSpec.ScreenHorizontalPaddingDp.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = stringResource(R.string.halo_more_controls),
                 style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
             )
+            // Volume first: three circular wells in one capsule row.
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(if (volumeEnabled) 1f else 0.4f),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
+                SheetWell(
                     enabled = volumeEnabled,
-                    onClick = { onVolume(VolumeCommand.UP) },
-                    modifier = Modifier.weight(1f)
-                ) { Text(stringResource(R.string.remote_volume_up)) }
-                Button(
+                    contentDescription = stringResource(R.string.remote_volume_up),
+                    onClick = { onVolume(VolumeCommand.UP) }
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = null,
+                        tint = halo.dockIcon
+                    )
+                }
+                SheetSeparator()
+                SheetWell(
                     enabled = volumeEnabled,
-                    onClick = { onVolume(VolumeCommand.MUTE) },
-                    modifier = Modifier.weight(1f)
-                ) { Text(stringResource(R.string.remote_mute)) }
-                Button(
+                    contentDescription = stringResource(R.string.remote_mute),
+                    onClick = { onVolume(VolumeCommand.MUTE) }
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.VolumeMute,
+                        contentDescription = null,
+                        tint = halo.dockIcon
+                    )
+                }
+                SheetSeparator()
+                SheetWell(
                     enabled = volumeEnabled,
-                    onClick = { onVolume(VolumeCommand.DOWN) },
-                    modifier = Modifier.weight(1f)
-                ) { Text(stringResource(R.string.remote_volume_down)) }
+                    contentDescription = stringResource(R.string.remote_volume_down),
+                    onClick = { onVolume(VolumeCommand.DOWN) }
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.VolumeDown,
+                        contentDescription = null,
+                        tint = halo.dockIcon
+                    )
+                }
             }
             if (showWatchGoogleTv || showWatchRoku) {
                 Row(
@@ -96,22 +143,24 @@ internal fun MoreControlsSheet(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (showWatchGoogleTv) {
-                        Button(
+                        GlassPill(
+                            label = stringResource(R.string.ecosystem_google_tv),
                             onClick = {
                                 onWatchGoogleTv()
                                 onDismiss()
                             },
                             modifier = Modifier.weight(1f)
-                        ) { Text(stringResource(R.string.ecosystem_google_tv)) }
+                        )
                     }
                     if (showWatchRoku) {
-                        Button(
+                        GlassPill(
+                            label = stringResource(R.string.ecosystem_roku),
                             onClick = {
                                 onWatchRoku()
                                 onDismiss()
                             },
                             modifier = Modifier.weight(1f)
-                        ) { Text(stringResource(R.string.ecosystem_roku)) }
+                        )
                     }
                 }
             }
@@ -139,24 +188,75 @@ internal fun MoreControlsSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Button(
+                GlassPill(
+                    label = stringResource(R.string.nav_apps),
                     onClick = { onSelectTab(RemoteTab.APPS) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accentSoft,
-                        contentColor = Color.White
-                    )
-                ) { Text(stringResource(R.string.nav_apps)) }
-                Button(
+                    modifier = Modifier.weight(1f)
+                )
+                GlassPill(
+                    label = stringResource(R.string.nav_settings),
                     onClick = { onSelectTab(RemoteTab.SETTINGS) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accentSoft,
-                        contentColor = Color.White
-                    )
-                ) { Text(stringResource(R.string.nav_settings)) }
+                    modifier = Modifier.weight(1f)
+                )
             }
             Spacer(Modifier.height(18.dp))
         }
+    }
+}
+
+@Composable
+private fun SheetWell(
+    enabled: Boolean,
+    contentDescription: String,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val halo = LocalHaloColors.current
+    Box(
+        modifier = Modifier
+            .size(HaloSpec.SheetWellDp.dp)
+            .background(halo.dockWell, CircleShape)
+            .border(1.dp, halo.dockBorder, CircleShape)
+            .clickable(enabled = enabled, onClickLabel = contentDescription, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SheetSeparator() {
+    Box(
+        Modifier
+            .padding(horizontal = 14.dp)
+            .width(1.dp)
+            .height(28.dp)
+            .background(LocalHaloColors.current.dockSeparator)
+    )
+}
+
+/** Halo-styled text pill: glass fill, hairline border, dock-icon text. */
+@Composable
+private fun GlassPill(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val halo = LocalHaloColors.current
+    val shape = RoundedCornerShape(24.dp)
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .background(halo.dockFill, shape)
+            .border(1.dp, halo.dockBorder, shape)
+            .clickable(onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = halo.dockIcon,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }

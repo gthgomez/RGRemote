@@ -38,7 +38,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +46,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rgremote.app.ui.ConnectionStatus
+import com.rgremote.app.ui.drawHaloRing
 import com.rgremote.app.ui.theme.HaloSpec
 import com.rgremote.app.ui.theme.LocalHaloColors
 import com.rgremote.app.ui.theme.RGRemoteTheme
@@ -267,14 +267,12 @@ private fun statusText(status: ConnectionStatus): String = when (status) {
 }
 
 /**
- * Static ring draft: sweep gradient stroke + center disc, per HaloSpec.
- * Replaced by the interactive HaloDpad in PR02.
+ * Static ring draft rendered with the shared drawHaloRing (HaloDpad visuals).
  */
 @Composable
 private fun RingPlaceholder(enabled: Boolean) {
     val halo = LocalHaloColors.current
     val configuration = LocalConfiguration.current
-    val density = LocalDensity.current
     val diameterDp = minOf(
         configuration.screenWidthDp * HaloSpec.RingWidthFraction,
         HaloSpec.RingMaxDiameterDp
@@ -286,42 +284,7 @@ private fun RingPlaceholder(enabled: Boolean) {
             .aspectRatio(1f)
             .alpha(alpha)
     ) {
-        val radius = size.minDimension / 2f
-        val coreStroke = radius * 2f * HaloSpec.RingCoreStrokeFraction
-        val center = Offset(radius, radius)
-        val sweep = Brush.sweepGradient(
-            0.00f to halo.ringEdge,
-            0.12f to halo.ringViolet,
-            0.25f to halo.ringVioletCore,
-            0.42f to halo.ringBlend,
-            0.60f to halo.ringCyan,
-            0.75f to halo.ringCyanCore,
-            0.90f to halo.ringCyan,
-            1.00f to halo.ringEdge
-        )
-        // Soft glow shoulder under the bright core.
-        drawCircle(
-            brush = sweep,
-            radius = radius - coreStroke * 0.9f,
-            center = center,
-            style = Stroke(width = coreStroke * 1.8f, cap = StrokeCap.Round),
-            alpha = 0.35f * alpha
-        )
-        drawCircle(
-            brush = sweep,
-            radius = radius - coreStroke * 0.5f,
-            center = center,
-            style = Stroke(width = coreStroke, cap = StrokeCap.Round),
-            alpha = alpha
-        )
-        val discRadius = radius * HaloSpec.CenterDiscFraction
-        drawCircle(color = halo.ringCenterFill, radius = discRadius, center = center)
-        drawCircle(
-            color = halo.ringCenterBorder,
-            radius = discRadius,
-            center = center,
-            style = Stroke(width = 1.dp.toPx())
-        )
+        drawHaloRing(halo, pressed = null)
     }
 }
 

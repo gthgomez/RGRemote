@@ -85,9 +85,11 @@ Summary (dark → light):
 - Ambient blooms: violet/blue lower-left + right (dark); lavender/cyan plus a pink bloom
   near the dock (light — the pink bloom is required, do not drop it).
 - Wordmark accent "RG": `#A26DF6` / `#6D3FD6`.
-- Ring gradient: violet `#8C5AE8` (upper-left) → core `#D58EFA` → blend `#8379F9` → cyan
-  core `#C0EAFE` → `#4497FB` (lower-right), edges `#2B2193` (dark); periwinkle `#9C9CE4`
-  → pale cyan `#9AF2FE` with faint glow (light).
+- Ring gradient (revised mockup): light blue at top `#4FB8FF` → violet `#6D7CFF`/`#9B5CF6`
+  → pink at bottom `#D86DDF` (dark); pastel equivalents in light. A darker band sits
+  between the glowing ring and the disc; disc is ~60% of ring diameter.
+- Ring-adjacent volume: small +/− controls flank the ring's right edge and fade in only
+  while the ring is touched (idle ring stays clean); volume also lives in More Controls.
 - Ring center: `#101543` + white 8% border / white + `#C9C9F5` border.
 - Dock: translucent indigo glass + white hairlines / white glass + `#E1E6F5` borders.
 - Power accent: existing `RgDanger` red with a red-tinted well (dark); `#E24A5E` + pink

@@ -18,8 +18,8 @@ class RingHitTestTest {
 
     @Test
     fun `inner disc boundary at select fraction maps to select`() {
-        // HaloSpec.SelectZoneRadiusFraction = 0.49; just inside must be SELECT.
-        val inner = c + r * 0.49f
+        // HaloSpec.SelectZoneRadiusFraction = 0.58; just inside must be SELECT.
+        val inner = c + r * 0.58f
         assertEquals(RingAction.SELECT, hitTestRing(inner, c, d))
     }
 
