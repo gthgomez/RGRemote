@@ -39,8 +39,10 @@ import com.rgremote.app.R
 import com.rgremote.app.domain.AppLaunchTarget
 import com.rgremote.app.domain.HdmiPort
 import com.rgremote.app.domain.VolumeCommand
+import com.rgremote.app.ui.ringGradientFill
 import com.rgremote.app.ui.theme.HaloSpec
 import com.rgremote.app.ui.theme.rememberRingBrush
+import com.rgremote.app.ui.theme.ringGradientColors
 import com.rgremote.app.ui.theme.LocalHaloColors
 
 /**
@@ -110,7 +112,8 @@ internal fun MoreControlsSheet(
                     Icon(
                         Icons.AutoMirrored.Filled.VolumeUp,
                         contentDescription = null,
-                        tint = halo.dockIcon
+                        tint = Color.White,
+                        modifier = Modifier.ringGradientFill(halo.ringGradientColors())
                     )
                 }
                 SheetSeparator()
@@ -122,7 +125,8 @@ internal fun MoreControlsSheet(
                     Icon(
                         Icons.AutoMirrored.Filled.VolumeMute,
                         contentDescription = null,
-                        tint = halo.dockIcon
+                        tint = Color.White,
+                        modifier = Modifier.ringGradientFill(halo.ringGradientColors())
                     )
                 }
                 SheetSeparator()
@@ -134,7 +138,8 @@ internal fun MoreControlsSheet(
                     Icon(
                         Icons.AutoMirrored.Filled.VolumeDown,
                         contentDescription = null,
-                        tint = halo.dockIcon
+                        tint = Color.White,
+                        modifier = Modifier.ringGradientFill(halo.ringGradientColors())
                     )
                 }
             }
