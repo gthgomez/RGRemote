@@ -710,7 +710,7 @@ private fun SetupGuideDialog(
         },
         dismissButton = {
             TextButton(onClick = onOpenManualDevice) {
-                Text(stringResource(R.string.common_add_by_ip), color = halo.wordmarkAccent)
+                Text(stringResource(R.string.common_add_by_ip), color = halo.ringBottom)
             }
         },
         title = {
@@ -719,7 +719,7 @@ private fun SetupGuideDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
                     text = stringResource(R.string.setup_guide_intro),
@@ -727,6 +727,7 @@ private fun SetupGuideDialog(
                     color = SecondaryText
                 )
                 SavedTvsSummary(state = state)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 GuideStep(
                     number = "1",
                     title = stringResource(R.string.guide_step_1_title),
@@ -761,7 +762,7 @@ private fun SetupGuideDialog(
                         else -> stringResource(R.string.guide_step_4_body_missing)
                     },
                     complete = googlePaired,
-                    accent = halo.ringMid
+                    accent = halo.ringBottom
                 )
                 GuideStep(
                     number = "5",
@@ -772,14 +773,15 @@ private fun SetupGuideDialog(
                         stringResource(R.string.guide_step_5_body_pick)
                     },
                     complete = hdmiMapped,
-                    accent = halo.ringTop
-                )
+                    accent = halo.ringBottom
+                    )
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     SettingsActionButton(
                         modifier = Modifier.weight(1f),
                         label = if (state.isScanning) stringResource(R.string.common_scanning) else stringResource(R.string.common_scan),
                         icon = Icons.Default.Refresh,
-                        accent = halo.ringMid,
+                        accent = halo.ringBottom,
                         enabled = !state.isScanning,
                         onClick = onScan
                     )
@@ -787,7 +789,7 @@ private fun SetupGuideDialog(
                         modifier = Modifier.weight(1f),
                         label = if (googleDiscovered) stringResource(R.string.guide_pair_hdmi) else stringResource(R.string.common_add_by_ip),
                         icon = if (googleDiscovered) Icons.Default.SmartDisplay else Icons.Default.Add,
-                        accent = halo.ringTop,
+                        accent = halo.ringBottom,
                         enabled = true,
                         onClick = if (googleDiscovered) onOpenGoogleTvSetup else onOpenManualDevice
                     )
@@ -825,7 +827,7 @@ private fun GuideStep(
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
