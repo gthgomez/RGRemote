@@ -17,6 +17,7 @@ import com.rgremote.app.domain.AppTargetSource
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.HdmiPort
+import com.rgremote.app.google.googleTvKeyCode
 import com.rgremote.app.domain.ManualDeviceEndpoint
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RemoteAdapter
@@ -303,6 +304,11 @@ class RGRemoteViewModel(
             RemoteCommand.Home,
             RemoteCommand.Back,
             RemoteCommand.PlayPause,
+            RemoteCommand.Rewind,
+            RemoteCommand.FastForward,
+            is RemoteCommand.Character,
+            RemoteCommand.KeyboardEnter,
+            RemoteCommand.KeyboardBackspace,
             is RemoteCommand.Volume -> false
             RemoteCommand.PowerOn,
             RemoteCommand.PowerOff,
@@ -565,6 +571,29 @@ class RGRemoteViewModel(
 
     fun sendVolume(command: VolumeCommand) {
         send(RemoteCommand.Volume(command))
+    }
+
+    /** Types [text] into the TV as one ordered batch. Google TV skips characters the keycode path can't express. */
+    fun sendText(text: String) {
+        if (text.isEmpty()) return
+        val device = uiState.value.selectedDevice ?: return
+        if (device.type == DeviceType.GOOGLE_TV) {
+            val mappable = text.filter { it.googleTvKeyCode() != null }
+            if (mappable.length < text.length) {
+                feedback.show(context.getString(R.string.gt_text_skipped))
+            }
+            commandExecutor.sendSequence(mappable.map { RemoteCommand.Character(it) })
+        } else {
+            commandExecutor.sendSequence(text.map { RemoteCommand.Character(it) })
+        }
+    }
+
+    fun sendKeyboardEnter() {
+        send(RemoteCommand.KeyboardEnter)
+    }
+
+    fun sendKeyboardBackspace() {
+        send(RemoteCommand.KeyboardBackspace)
     }
 
     fun launchTypedTarget() {

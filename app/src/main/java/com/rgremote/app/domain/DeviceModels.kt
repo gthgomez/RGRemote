@@ -41,12 +41,19 @@ sealed interface RemoteCommand {
     data object Home : RemoteCommand
     data object Back : RemoteCommand
     data object PlayPause : RemoteCommand
+    data object Rewind : RemoteCommand
+    data object FastForward : RemoteCommand
     data class Volume(val command: VolumeCommand) : RemoteCommand
     data object PowerOn : RemoteCommand
     data object PowerOff : RemoteCommand
     data object PowerToggle : RemoteCommand
     data class LaunchApp(val appIdOrUri: String) : RemoteCommand
     data class SetInput(val port: HdmiPort) : RemoteCommand
+
+    /** Types one character into the TV (Roku uses Lit_ injection; Google TV uses keycodes). */
+    data class Character(val char: Char) : RemoteCommand
+    data object KeyboardEnter : RemoteCommand
+    data object KeyboardBackspace : RemoteCommand
 }
 
 data class RegisteredDevice(

@@ -15,6 +15,7 @@ import java.net.DatagramSocket
 import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.URL
+import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -24,6 +25,17 @@ class RokuNetworkAccessException(
 ) : IOException(
     "Roku refused /$path with HTTP $code. Set Settings > System > Advanced system settings > Control by mobile apps > Network access to Enabled."
 )
+
+/**
+ * ECP literal-text key for a character: alphanumerics go as-is, everything else
+ * is percent-encoded (space becomes %20, not +).
+ */
+internal fun rokuLitKey(char: Char): String =
+    if (char.isLetterOrDigit()) {
+        "Lit_$char"
+    } else {
+        "Lit_" + URLEncoder.encode(char.toString(), Charsets.UTF_8).replace("+", "%20")
+    }
 
 class RokuEcpClient(
     private val timeoutMillis: Int = DEFAULT_TIMEOUT_MILLIS,
@@ -37,6 +49,11 @@ class RokuEcpClient(
                 RemoteCommand.Home -> post(device, "keypress/Home")
                 RemoteCommand.Back -> post(device, "keypress/Back")
                 RemoteCommand.PlayPause -> post(device, "keypress/Play")
+                RemoteCommand.Rewind -> post(device, "keypress/Rev")
+                RemoteCommand.FastForward -> post(device, "keypress/Fwd")
+                is RemoteCommand.Character -> post(device, "keypress/${rokuLitKey(command.char)}")
+                RemoteCommand.KeyboardEnter -> post(device, "keypress/Enter")
+                RemoteCommand.KeyboardBackspace -> post(device, "keypress/Backspace")
                 is RemoteCommand.Volume -> post(device, "keypress/${command.command.rokuKey()}")
                 RemoteCommand.PowerOn -> {
                     withContext(Dispatchers.IO) {
