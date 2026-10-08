@@ -3,8 +3,11 @@ package com.rgremote.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -63,6 +66,10 @@ internal fun HaloRemoteScreen(
     accentSoft: Color,
     controlsEnabled: Boolean,
     volumeEnabled: Boolean,
+    showWatchGoogleTv: Boolean,
+    showWatchRoku: Boolean,
+    onWatchGoogleTv: () -> Unit,
+    onWatchRoku: () -> Unit,
     onScan: () -> Unit,
     onRefreshStatus: () -> Unit,
     onOpenSetupGuide: () -> Unit,
@@ -126,11 +133,13 @@ internal fun HaloRemoteScreen(
                 enabled = true,
                 onClick = { showSwitcher = true }
             )
-            Spacer(Modifier.weight(0.6f))
-            val ringDiameter = minOf(
-                LocalConfiguration.current.screenWidthDp * HaloSpec.RingWidthFraction,
-                HaloSpec.RingMaxDiameterDp
-            ).dp
+            Spacer(Modifier.weight(0.4f))
+            BoxWithConstraints {
+                val ringDiameter = minOf(
+                    maxWidth * HaloSpec.RingWidthFraction,
+                    maxHeight * 0.96f,
+                    HaloSpec.RingMaxDiameterDp.dp
+                )
             HaloDpad(
                 enabled = controlsEnabled,
                 onSequenceStart = { dpadGeneration = onBeginDpadSequence() },
@@ -145,8 +154,9 @@ internal fun HaloRemoteScreen(
                 },
                 onSequenceEnd = onEndDpadSequence,
                 modifier = Modifier.width(ringDiameter)
-            )
-            Spacer(Modifier.weight(0.6f))
+                )
+            }
+            Spacer(Modifier.weight(0.4f))
             GlassActionDock(
                 enabled = controlsEnabled,
                 power = power,
@@ -181,6 +191,10 @@ internal fun HaloRemoteScreen(
             accentSoft = accentSoft,
             volumeEnabled = volumeEnabled && controlsEnabled,
             onVolume = onVolume,
+            showWatchGoogleTv = showWatchGoogleTv,
+            showWatchRoku = showWatchRoku,
+            onWatchGoogleTv = onWatchGoogleTv,
+            onWatchRoku = onWatchRoku,
             onLaunchPreset = onLaunchPreset,
             onLaunchPinnedApp = onLaunchPinnedApp,
             onSelectTab = {
@@ -409,11 +423,22 @@ private fun MoreControlsAffordance(
     val halo = LocalHaloColors.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable(
-            enabled = enabled,
-            onClickLabel = stringResource(R.string.halo_more_controls),
-            onClick = onClick
-        )
+        modifier = Modifier
+            .clickable(
+                enabled = enabled,
+                onClickLabel = stringResource(R.string.halo_more_controls),
+                onClick = onClick
+            )
+            // Upward swipe on the affordance also opens the sheet, so the
+            // gesture lives here rather than on the navigation ring.
+            .pointerInput(enabled) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    if (dragAmount < -SwipeUpThresholdPx) {
+                        change.consume()
+                        onClick()
+                    }
+                }
+            }
     ) {
         Box(
             modifier = Modifier
@@ -436,3 +461,5 @@ private fun MoreControlsAffordance(
         )
     }
 }
+
+private const val SwipeUpThresholdPx = 40f

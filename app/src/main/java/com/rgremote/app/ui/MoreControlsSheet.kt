@@ -41,6 +41,10 @@ internal fun MoreControlsSheet(
     accentSoft: Color,
     volumeEnabled: Boolean,
     onVolume: (VolumeCommand) -> Unit,
+    showWatchGoogleTv: Boolean,
+    showWatchRoku: Boolean,
+    onWatchGoogleTv: () -> Unit,
+    onWatchRoku: () -> Unit,
     onLaunchPreset: (String) -> Unit,
     onLaunchPinnedApp: (AppLaunchTarget) -> Unit,
     onSelectTab: (RemoteTab) -> Unit,
@@ -85,6 +89,31 @@ internal fun MoreControlsSheet(
                     onClick = { onVolume(VolumeCommand.DOWN) },
                     modifier = Modifier.weight(1f)
                 ) { Text(stringResource(R.string.remote_volume_down)) }
+            }
+            if (showWatchGoogleTv || showWatchRoku) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (showWatchGoogleTv) {
+                        Button(
+                            onClick = {
+                                onWatchGoogleTv()
+                                onDismiss()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text(stringResource(R.string.ecosystem_google_tv)) }
+                    }
+                    if (showWatchRoku) {
+                        Button(
+                            onClick = {
+                                onWatchRoku()
+                                onDismiss()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text(stringResource(R.string.ecosystem_roku)) }
+                    }
+                }
             }
             RemoteShortcutDock(
                 state = state,
