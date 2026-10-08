@@ -101,8 +101,7 @@ internal fun RemoteSurface(
     onScan: () -> Unit,
     onRefreshStatus: () -> Unit,
     onOpenSetupGuide: () -> Unit,
-) {
-    val selected = state.selectedDevice
+) {    val selected = state.selectedDevice
     val rokuPowerMode = if (ecosystem.type == DeviceType.ROKU_TV) state.selectedRokuPowerMode else null
     val powerOffEnabled = powerEnabled && (ecosystem.type != DeviceType.ROKU_TV || rokuControls.supportsPowerOff != false)
     val volumeEnabled = enabled && (ecosystem.type != DeviceType.ROKU_TV || rokuControls.supportsVolume != false)
@@ -311,15 +310,40 @@ internal fun RemoteSurface(
                     }
                 }
 
-                TransportButton(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    icon = Icons.Default.PlayArrow,
-                    label = stringResource(R.string.remote_play_pause),
-                    accent = accentSoft,
-                    enabled = enabled,
-                    emphasized = false
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    hapticTrigger { onCommand(RemoteCommand.PlayPause) }
+                    TransportButton(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                        label = stringResource(R.string.remote_rewind),
+                        accent = accentSoft,
+                        enabled = enabled,
+                        emphasized = false
+                    ) {
+                        hapticTrigger { onCommand(RemoteCommand.Rewind) }
+                    }
+                    TransportButton(
+                        modifier = Modifier.weight(1.4f),
+                        icon = Icons.Default.PlayArrow,
+                        label = stringResource(R.string.remote_play_pause),
+                        accent = accentSoft,
+                        enabled = enabled,
+                        emphasized = true
+                    ) {
+                        hapticTrigger { onCommand(RemoteCommand.PlayPause) }
+                    }
+                    TransportButton(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        label = stringResource(R.string.remote_fast_forward),
+                        accent = accentSoft,
+                        enabled = enabled,
+                        emphasized = false
+                    ) {
+                        hapticTrigger { onCommand(RemoteCommand.FastForward) }
+                    }
                 }
 
                 if (wakeHint != null && ecosystem.type == DeviceType.ROKU_TV) {

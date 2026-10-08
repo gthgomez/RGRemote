@@ -39,10 +39,65 @@ internal object GoogleTvRemoteProtocol {
     const val KEYCODE_VOLUME_DOWN = 25L
     const val KEYCODE_POWER = 26L
     const val KEYCODE_MEDIA_PLAY_PAUSE = 85L
+    const val KEYCODE_MEDIA_REWIND = 89L
+    const val KEYCODE_MEDIA_FAST_FORWARD = 90L
     const val KEYCODE_VOLUME_MUTE = 164L
     const val KEYCODE_SLEEP = 223L
     const val KEYCODE_WAKEUP = 224L
+
+    const val KEYCODE_SPACE = 62L
+    const val KEYCODE_ENTER = 66L
+    const val KEYCODE_DEL = 67L
+    const val KEYCODE_COMMA = 55L
+    const val KEYCODE_PERIOD = 56L
+    const val KEYCODE_GRAVE = 68L
+    const val KEYCODE_MINUS = 69L
+    const val KEYCODE_EQUALS = 70L
+    const val KEYCODE_LEFT_BRACKET = 73L
+    const val KEYCODE_RIGHT_BRACKET = 74L
+    const val KEYCODE_BACKSLASH = 75L
+    const val KEYCODE_SEMICOLON = 76L
+    const val KEYCODE_APOSTROPHE = 77L
+    const val KEYCODE_SLASH = 78L
+    const val KEYCODE_AT = 80L
+    const val KEYCODE_PLUS = 81L
+    const val KEYCODE_STAR = 82L
+    const val KEYCODE_POUND = 83L
 }
+
+/**
+ * Android keycode for a character, or null when the protocol path here cannot
+ * express it: uppercase collapses to its lowercase letter, and shifted
+ * punctuation (no dedicated unshifted keycode) is skipped — key injection
+ * carries no shift meta, so e.g. '_' would silently arrive as '-'.
+ * KEYCODE_PLUS/AT/STAR/POUND are excluded from that rule: Android defines them
+ * as symbol keycodes whose unshifted mapping is the symbol itself.
+ */
+internal fun Char.googleTvKeyCode(): Long? =
+    when (this) {
+        in 'a'..'z' -> (this - 'a' + 29L)
+        in 'A'..'Z' -> (this - 'A' + 29L)
+        in '0'..'9' -> (this - '0' + 7L)
+        ' ' -> GoogleTvRemoteProtocol.KEYCODE_SPACE
+        '\n' -> GoogleTvRemoteProtocol.KEYCODE_ENTER
+        '\b' -> GoogleTvRemoteProtocol.KEYCODE_DEL
+        '.' -> GoogleTvRemoteProtocol.KEYCODE_PERIOD
+        ',' -> GoogleTvRemoteProtocol.KEYCODE_COMMA
+        '-' -> GoogleTvRemoteProtocol.KEYCODE_MINUS
+        '=' -> GoogleTvRemoteProtocol.KEYCODE_EQUALS
+        '+' -> GoogleTvRemoteProtocol.KEYCODE_PLUS
+        '@' -> GoogleTvRemoteProtocol.KEYCODE_AT
+        '*' -> GoogleTvRemoteProtocol.KEYCODE_STAR
+        '#' -> GoogleTvRemoteProtocol.KEYCODE_POUND
+        '/' -> GoogleTvRemoteProtocol.KEYCODE_SLASH
+        '\\' -> GoogleTvRemoteProtocol.KEYCODE_BACKSLASH
+        ';' -> GoogleTvRemoteProtocol.KEYCODE_SEMICOLON
+        '\'' -> GoogleTvRemoteProtocol.KEYCODE_APOSTROPHE
+        '`' -> GoogleTvRemoteProtocol.KEYCODE_GRAVE
+        '[' -> GoogleTvRemoteProtocol.KEYCODE_LEFT_BRACKET
+        ']' -> GoogleTvRemoteProtocol.KEYCODE_RIGHT_BRACKET
+        else -> null
+    }
 
 internal fun RemoteCommand.requiredFeature(): Long =
     when (this) {
@@ -50,7 +105,12 @@ internal fun RemoteCommand.requiredFeature(): Long =
         RemoteCommand.Select,
         RemoteCommand.Home,
         RemoteCommand.Back,
-        RemoteCommand.PlayPause -> GoogleTvRemoteProtocol.FEATURE_KEY
+        RemoteCommand.PlayPause,
+        RemoteCommand.Rewind,
+        RemoteCommand.FastForward,
+        is RemoteCommand.Character,
+        RemoteCommand.KeyboardEnter,
+        RemoteCommand.KeyboardBackspace -> GoogleTvRemoteProtocol.FEATURE_KEY
         is RemoteCommand.Volume -> GoogleTvRemoteProtocol.FEATURE_VOLUME
         RemoteCommand.PowerOn,
         RemoteCommand.PowerOff,
@@ -66,6 +126,14 @@ internal fun RemoteCommand.toRemoteMessage(): ByteArray =
         RemoteCommand.Home -> keyInject(GoogleTvRemoteProtocol.KEYCODE_HOME)
         RemoteCommand.Back -> keyInject(GoogleTvRemoteProtocol.KEYCODE_BACK)
         RemoteCommand.PlayPause -> keyInject(GoogleTvRemoteProtocol.KEYCODE_MEDIA_PLAY_PAUSE)
+        RemoteCommand.Rewind -> keyInject(GoogleTvRemoteProtocol.KEYCODE_MEDIA_REWIND)
+        RemoteCommand.FastForward -> keyInject(GoogleTvRemoteProtocol.KEYCODE_MEDIA_FAST_FORWARD)
+        is RemoteCommand.Character -> keyInject(
+            char.googleTvKeyCode()
+                ?: throw IOException("Character '${char}' cannot be typed on Google TV")
+        )
+        RemoteCommand.KeyboardEnter -> keyInject(GoogleTvRemoteProtocol.KEYCODE_ENTER)
+        RemoteCommand.KeyboardBackspace -> keyInject(GoogleTvRemoteProtocol.KEYCODE_DEL)
         is RemoteCommand.Volume -> keyInject(command.keyCode())
         RemoteCommand.PowerOn -> keyInject(GoogleTvRemoteProtocol.KEYCODE_WAKEUP)
         RemoteCommand.PowerOff -> keyInject(GoogleTvRemoteProtocol.KEYCODE_SLEEP)

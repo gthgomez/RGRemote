@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -113,6 +114,9 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
 import com.rgremote.app.domain.VolumeCommand
 
+/** Width at which Apps/Settings content stops stretching on tablets. */
+private val TabletMaxContentWidth = 640.dp
+
 @Composable
 fun RGRemoteApp(viewModel: RGRemoteViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -149,7 +153,10 @@ fun RGRemoteApp(viewModel: RGRemoteViewModel) {
         onSetStartupScreen = viewModel::setStartupScreen,
         onSetThemeMode = viewModel::setThemeMode,
         onRemoveSavedDevice = viewModel::removeSavedDevice,
-        onDedupeSavedDevices = viewModel::dedupeSavedDevices
+        onDedupeSavedDevices = viewModel::dedupeSavedDevices,
+        onSendText = viewModel::sendText,
+        onKeyboardEnter = viewModel::sendKeyboardEnter,
+        onKeyboardBackspace = viewModel::sendKeyboardBackspace
     )
 }
 
@@ -188,6 +195,9 @@ private fun RGRemoteScreen(
     onSetThemeMode: (ThemeMode) -> Unit,
     onRemoveSavedDevice: (String) -> Unit,
     onDedupeSavedDevices: () -> Unit,
+    onSendText: (String) -> Unit,
+    onKeyboardEnter: () -> Unit,
+    onKeyboardBackspace: () -> Unit,
 ) {
     var showGoogleTvSetupDialog by rememberSaveable { mutableStateOf(false) }
     var editingGoogleTvApp by remember { mutableStateOf<AppLaunchTarget?>(null) }
@@ -353,6 +363,9 @@ private fun RGRemoteScreen(
                                 onTargetChange = onLaunchTargetChange,
                                 onLaunch = onLaunch,
                                 onSwitchInput = onSwitchTvInput,
+                                onSendText = onSendText,
+                                onKeyboardEnter = onKeyboardEnter,
+                                onKeyboardBackspace = onKeyboardBackspace,
                                 setupGuideBanner = {
                                     SetupGuideBanner(
                                         state = state,
@@ -366,6 +379,8 @@ private fun RGRemoteScreen(
                         RemoteTab.APPS -> Column(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .widthIn(max = TabletMaxContentWidth)
+                                .align(Alignment.CenterHorizontally)
                                 .verticalScroll(tabScroll),
                             verticalArrangement = Arrangement.spacedBy(sectionSpacing)
                         ) {
@@ -396,6 +411,8 @@ private fun RGRemoteScreen(
                         RemoteTab.SETTINGS -> Column(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .widthIn(max = TabletMaxContentWidth)
+                                .align(Alignment.CenterHorizontally)
                                 .verticalScroll(tabScroll),
                             verticalArrangement = Arrangement.spacedBy(sectionSpacing)
                         ) {

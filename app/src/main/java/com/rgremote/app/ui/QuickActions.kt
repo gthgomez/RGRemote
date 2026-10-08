@@ -177,6 +177,9 @@ internal fun RemoteUtilitiesDock(
     onTargetChange: (String) -> Unit,
     onLaunch: () -> Unit,
     onSwitchInput: (HdmiPort) -> Unit,
+    onSendText: (String) -> Unit,
+    onKeyboardEnter: () -> Unit,
+    onKeyboardBackspace: () -> Unit,
 ) {
     if (!state.showUtilitiesDock) return
     val setupIncomplete = state.setupIncomplete
@@ -213,6 +216,74 @@ internal fun RemoteUtilitiesDock(
             onTargetChange = onTargetChange,
             onLaunch = onLaunch
         )
+        ActionSectionLabel(stringResource(R.string.section_keyboard))
+        KeyboardPanel(
+            accent = accent,
+            onSendText = onSendText,
+            onEnter = onKeyboardEnter,
+            onBackspace = onKeyboardBackspace
+        )
+    }
+}
+
+/** Text-entry panel: a field plus Send, with Enter and Backspace keys for the TV's focused field. */
+@Composable
+internal fun KeyboardPanel(
+    accent: Color,
+    onSendText: (String) -> Unit,
+    onEnter: () -> Unit,
+    onBackspace: () -> Unit,
+) {
+    var draft by rememberSaveable { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.keyboard_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = SecondaryText
+        )
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = draft,
+            onValueChange = { draft = it },
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            placeholder = { Text(stringResource(R.string.keyboard_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                modifier = Modifier.weight(1.6f).height(48.dp),
+                enabled = draft.isNotBlank(),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                onClick = {
+                    onSendText(draft)
+                    draft = ""
+                }
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.keyboard_send), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Button(
+                modifier = Modifier.weight(1f).height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = NeoCard.copy(alpha = 0.9f), contentColor = PrimaryText),
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                onClick = onEnter
+            ) {
+                Text(stringResource(R.string.keyboard_enter), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Button(
+                modifier = Modifier.weight(1.4f).height(48.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = NeoCard.copy(alpha = 0.9f), contentColor = PrimaryText),
+                contentPadding = PaddingValues(horizontal = 10.dp),
+                onClick = onBackspace
+            ) {
+                Text(stringResource(R.string.keyboard_backspace), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 

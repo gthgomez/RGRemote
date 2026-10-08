@@ -17,6 +17,7 @@ import com.rgremote.app.domain.AppTargetSource
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.HdmiPort
+import com.rgremote.app.google.googleTvKeyCode
 import com.rgremote.app.domain.ManualDeviceEndpoint
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RemoteAdapter
@@ -27,6 +28,7 @@ import com.rgremote.app.google.GoogleTvPairingManager
 import com.rgremote.app.roku.RokuEcpClient
 import com.rgremote.app.roku.RokuConnectionCoordinator
 import com.rgremote.app.roku.displayMessage
+import com.rgremote.app.roku.rokuLitKey
 import com.rgremote.app.ui.controller.DeviceCommandExecutor
 import com.rgremote.app.ui.controller.DeviceStatusWriter
 import com.rgremote.app.ui.controller.DiscoveryCoordinator
@@ -303,6 +305,11 @@ class RGRemoteViewModel(
             RemoteCommand.Home,
             RemoteCommand.Back,
             RemoteCommand.PlayPause,
+            RemoteCommand.Rewind,
+            RemoteCommand.FastForward,
+            is RemoteCommand.Character,
+            RemoteCommand.KeyboardEnter,
+            RemoteCommand.KeyboardBackspace,
             is RemoteCommand.Volume -> false
             RemoteCommand.PowerOn,
             RemoteCommand.PowerOff,
@@ -565,6 +572,30 @@ class RGRemoteViewModel(
 
     fun sendVolume(command: VolumeCommand) {
         send(RemoteCommand.Volume(command))
+    }
+
+    /** Types [text] into the TV as one ordered batch, skipping characters the ecosystem's protocol can't express. */
+    fun sendText(text: String) {
+        if (text.isEmpty()) return
+        val device = uiState.value.selectedDevice ?: return
+        val typable = text.filter { char ->
+            when (device.type) {
+                DeviceType.GOOGLE_TV -> char.googleTvKeyCode() != null
+                DeviceType.ROKU_TV -> rokuLitKey(char) != null
+            }
+        }
+        if (typable.length < text.length) {
+            feedback.show(context.getString(R.string.text_skipped))
+        }
+        commandExecutor.sendSequence(typable.map { RemoteCommand.Character(it) })
+    }
+
+    fun sendKeyboardEnter() {
+        send(RemoteCommand.KeyboardEnter)
+    }
+
+    fun sendKeyboardBackspace() {
+        send(RemoteCommand.KeyboardBackspace)
     }
 
     fun launchTypedTarget() {

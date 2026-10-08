@@ -43,6 +43,8 @@
     <string name="remote_power">Power</string>
     <string name="remote_mute">Mute</string>
     <string name="remote_play_pause">PLAY / PAUSE</string>
+    <string name="remote_rewind">REWIND</string>
+    <string name="remote_fast_forward">FAST FORWARD</string>
     <string name="remote_volume_up">Volume up</string>
     <string name="remote_volume_down">Volume down</string>
     <string name="remote_vol">VOL</string>
@@ -61,6 +63,12 @@
     <string name="section_hdmi_inputs">HDMI INPUTS</string>
     <string name="section_launch">LAUNCH</string>
     <string name="section_launch_app">LAUNCH APP</string>
+    <string name="section_keyboard">KEYBOARD</string>
+    <string name="keyboard_hint">Type, then send to the TV\'s focused text field</string>
+    <string name="keyboard_send">Send</string>
+    <string name="keyboard_enter">Enter</string>
+    <string name="keyboard_backspace">⌫ Backspace</string>
+    <string name="text_skipped">Some characters aren\'t supported by this TV and were skipped</string>
     <string name="launch_placeholder_package">Package name or deep link</string>
     <string name="launch_placeholder_channel">Channel ID or deep link</string>
     <string name="shortcuts_title">Shortcuts</string>

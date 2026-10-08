@@ -63,6 +63,22 @@ class DeviceCommandExecutor(
         }
     }
 
+    /**
+     * Sends a batch (e.g. typed characters) as ONE queued action so long text
+     * never overflows the fixed-capacity command queue and keeps its ordering.
+     */
+    fun sendSequence(commands: List<RemoteCommand>) {
+        if (commands.isEmpty()) return
+        val device = getState().selectedDevice ?: return feedback.show("No selected device")
+        enqueueCommand {
+            commands.forEach { command ->
+                if (sendTo(device, command).isSuccess) {
+                    onCommandSuccess(device, command)
+                }
+            }
+        }
+    }
+
     fun switchTvInput(port: HdmiPort) {
         val roku = getState().rokuDevice ?: return feedback.show("Add a Roku TV first")
         enqueueCommand {
@@ -126,6 +142,8 @@ class DeviceCommandExecutor(
         when (this) {
             is RemoteCommand.Dpad, is RemoteCommand.Volume -> true
             RemoteCommand.Select, RemoteCommand.Home, RemoteCommand.Back, RemoteCommand.PlayPause -> true
+            is RemoteCommand.Character, RemoteCommand.KeyboardEnter, RemoteCommand.KeyboardBackspace -> true
+            RemoteCommand.Rewind, RemoteCommand.FastForward -> true
             else -> false
         }
 
@@ -136,6 +154,11 @@ class DeviceCommandExecutor(
             RemoteCommand.Home -> "home"
             RemoteCommand.Back -> "back"
             RemoteCommand.PlayPause -> "play"
+            RemoteCommand.Rewind -> "rewind"
+            RemoteCommand.FastForward -> "fast forward"
+            is RemoteCommand.Character -> "character"
+            RemoteCommand.KeyboardEnter -> "enter"
+            RemoteCommand.KeyboardBackspace -> "backspace"
             is RemoteCommand.Volume -> command.name.lowercase()
             RemoteCommand.PowerOn -> "wake/home"
             RemoteCommand.PowerOff -> "power off"
