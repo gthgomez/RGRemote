@@ -515,7 +515,7 @@ private fun RingVolumeRail(
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = null,
-                tint = halo.dockIcon
+                tint = halo.ringAccent
             )
         }
         Box(
@@ -531,7 +531,7 @@ private fun RingVolumeRail(
             Icon(
                 imageVector = Icons.Filled.Remove,
                 contentDescription = null,
-                tint = halo.dockIcon
+                tint = halo.ringAccent
             )
         }
     }

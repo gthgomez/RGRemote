@@ -1,5 +1,7 @@
 package com.rgremote.app.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -19,11 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -154,6 +154,11 @@ fun HaloDpad(
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                         change.consume()
                         if (change.changedToUp()) break
+                        // Release-detection backstop: if ANY event shows every
+                        // pointer lifted, end the sequence. Without this a missed
+                        // up-change on the tracked id kept the repeat running
+                        // until the next tap (observed on S25 Ultra).
+                        if (event.changes.none { it.pressed }) break
                         if (change.positionChanged() &&
                             (change.position.x < -slop || change.position.x > size.width + slop ||
                                 change.position.y < -slop || change.position.y > size.height + slop)
@@ -187,6 +192,13 @@ fun HaloDpad(
         }
     }
 
+    // The ring itself extends toward the pressed direction; no arrow glyphs.
+    val extendProgress by animateFloatAsState(
+        targetValue = if (shown != null && shown != RingAction.SELECT) 1f else 0f,
+        animationSpec = tween(durationMillis = 140),
+        label = "ringExtend"
+    )
+
     Box(
         modifier = modifier
             .aspectRatio(1f)
@@ -198,7 +210,7 @@ fun HaloDpad(
                 .fillMaxSize()
                 .alpha(if (enabled) 1f else DisabledAlpha)
         ) {
-            drawHaloRing(halo, shown)
+            drawHaloRing(halo, shown, extendProgress)
         }
     }
 }
@@ -213,7 +225,11 @@ private fun RingAction.accessibilityLabel(): String = when (this) {
     RingAction.SELECT -> "Select"
 }
 
-internal fun DrawScope.drawHaloRing(halo: HaloColors, pressed: RingAction?) {
+internal fun DrawScope.drawHaloRing(
+    halo: HaloColors,
+    pressed: RingAction?,
+    extendProgress: Float = 0f,
+) {
     val radius = size.minDimension / 2f
     val center = Offset(radius, radius)
     val coreStroke = radius * 2f * HaloSpec.RingCoreStrokeFraction
@@ -230,18 +246,28 @@ internal fun DrawScope.drawHaloRing(halo: HaloColors, pressed: RingAction?) {
         0.90f to halo.ringMid,
         1.00f to halo.ringMid
     )
+    // Pressed feedback: the glowing ring leans toward the pressed direction.
+    val push = when (pressed) {
+        RingAction.UP -> Offset(0f, -1f)
+        RingAction.DOWN -> Offset(0f, 1f)
+        RingAction.LEFT -> Offset(-1f, 0f)
+        RingAction.RIGHT -> Offset(1f, 0f)
+        else -> Offset.Zero
+    } * radius * 0.055f * extendProgress
+    val ringCenter = center + push
+
     // Soft glow shoulder under the bright core.
     drawCircle(
         brush = sweep,
         radius = radius - coreStroke * 0.9f,
-        center = center,
+        center = ringCenter,
         style = Stroke(width = coreStroke * 1.8f, cap = StrokeCap.Round),
         alpha = 0.35f
     )
     drawCircle(
         brush = sweep,
         radius = radius - coreStroke * 0.5f,
-        center = center,
+        center = ringCenter,
         style = Stroke(width = coreStroke, cap = StrokeCap.Round)
     )
     // Band between the glowing ring and the select disc.
@@ -262,36 +288,5 @@ internal fun DrawScope.drawHaloRing(halo: HaloColors, pressed: RingAction?) {
             center = center,
             style = Stroke(width = 1.dp.toPx())
         )
-    }
-    if (pressed != null && pressed != RingAction.SELECT) {
-        drawDirectionArrow(pressed, center, radius, discRadius, halo)
-    }
-}
-
-/** Draws a small solid triangle in the pressed sector, between disc and ring. */
-private fun DrawScope.drawDirectionArrow(
-    action: RingAction,
-    center: Offset,
-    ringRadius: Float,
-    discRadius: Float,
-    halo: HaloColors,
-) {
-    val angle = when (action) {
-        RingAction.UP -> 0f
-        RingAction.RIGHT -> 90f
-        RingAction.DOWN -> 180f
-        RingAction.LEFT -> 270f
-        RingAction.SELECT -> 0f
-    }
-    val distance = discRadius + (ringRadius - discRadius) / 2f
-    val size = ringRadius * 0.12f
-    val path = Path().apply {
-        moveTo(center.x, center.y - distance - size)
-        lineTo(center.x - size, center.y - distance + size)
-        lineTo(center.x + size, center.y - distance + size)
-        close()
-    }
-    rotate(degrees = angle, pivot = center) {
-        drawPath(path, color = halo.ringAccent)
     }
 }
