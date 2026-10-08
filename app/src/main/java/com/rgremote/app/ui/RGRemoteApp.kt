@@ -156,7 +156,10 @@ fun RGRemoteApp(viewModel: RGRemoteViewModel) {
         onDedupeSavedDevices = viewModel::dedupeSavedDevices,
         onSendText = viewModel::sendText,
         onKeyboardEnter = viewModel::sendKeyboardEnter,
-        onKeyboardBackspace = viewModel::sendKeyboardBackspace
+        onKeyboardBackspace = viewModel::sendKeyboardBackspace,
+        onBeginDpadSequence = viewModel::beginDpadSequence,
+        onDpadRepeat = viewModel::sendDpad,
+        onEndDpadSequence = viewModel::cancelDpadSequence
     )
 }
 
@@ -198,6 +201,9 @@ private fun RGRemoteScreen(
     onSendText: (String) -> Unit,
     onKeyboardEnter: () -> Unit,
     onKeyboardBackspace: () -> Unit,
+    onBeginDpadSequence: () -> Long,
+    onDpadRepeat: (DpadDirection, Long) -> Unit,
+    onEndDpadSequence: () -> Unit,
 ) {
     var showGoogleTvSetupDialog by rememberSaveable { mutableStateOf(false) }
     var editingGoogleTvApp by remember { mutableStateOf<AppLaunchTarget?>(null) }
@@ -366,6 +372,9 @@ private fun RGRemoteScreen(
                                 onSendText = onSendText,
                                 onKeyboardEnter = onKeyboardEnter,
                                 onKeyboardBackspace = onKeyboardBackspace,
+                                onBeginDpadSequence = onBeginDpadSequence,
+                                onDpadRepeat = onDpadRepeat,
+                                onEndDpadSequence = onEndDpadSequence,
                                 setupGuideBanner = {
                                     SetupGuideBanner(
                                         state = state,

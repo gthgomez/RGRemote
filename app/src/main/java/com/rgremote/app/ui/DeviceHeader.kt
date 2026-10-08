@@ -12,6 +12,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -910,5 +912,48 @@ internal fun EcosystemSignalBar(accent: Color) {
                 .neoGlow(accent, 0.45f, radius = 8.dp)
         )
         Box(Modifier.height(1.dp).weight(1f).background(Color.White.copy(alpha = 0.08f)))
+    }
+}
+
+
+/**
+ * Bottom-sheet device switcher for the halo screen's device chip, hosting the
+ * existing [DeviceSwitcherGrid].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun HaloDeviceSwitcherSheet(
+    state: RGRemoteUiState,
+    onSelect: (String) -> Unit,
+    onGoogleSelect: (RegisteredDevice) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.halo_cd_switch_device),
+                style = MaterialTheme.typography.titleMedium,
+                color = PrimaryText
+            )
+            DeviceSwitcherGrid(
+                state = state,
+                selected = state.selectedDevice,
+                onSelect = {
+                    onSelect(it)
+                    onDismiss()
+                },
+                onGoogleSelect = {
+                    onGoogleSelect(it)
+                    onDismiss()
+                }
+            )
+            Spacer(Modifier.height(12.dp))
+        }
     }
 }

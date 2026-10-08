@@ -37,6 +37,9 @@
     <!-- Remote screen -->
     <string name="remote_no_device_selected">No device selected</string>
     <string name="remote_cd_device_actions">Device Actions</string>
+    <string name="halo_more_controls">More Controls</string>
+    <string name="halo_not_paired_hint">Not paired — tap to set up</string>
+    <string name="halo_cd_switch_device">Switch device</string>
     <string name="remote_back">Back</string>
     <string name="remote_home">Home</string>
     <string name="remote_wake">Wake</string>
