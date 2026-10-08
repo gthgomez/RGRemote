@@ -19,13 +19,19 @@ internal data class PowerPresentation(
  * Roku never receives [RemoteCommand.PowerToggle]: `RokuEcpClient` rejects it.
  * When the power mode is unknown the safe fallback is [RemoteCommand.PowerOn]
  * (Wake-over-WLAN + Home), which is harmless if the TV is already on.
+ *
+ * Both standby (`displayoff`/`standby`) AND deep off (`poweroff`) resolve to
+ * wake: deep-off includes Fast TV Start TVs whose ECP still answers while the
+ * panel is dark, and the previous logic dispatched PowerOff at exactly the TV
+ * that most needed waking.
  */
 internal fun resolvePowerPresentation(
     ecosystemType: DeviceType,
     rokuPowerMode: String?,
     connectionStatus: ConnectionStatus,
 ): PowerPresentation {
-    val isStandby = RokuPowerMode.displayLabel(rokuPowerMode) == "Standby" ||
+    val shouldWake = RokuPowerMode.displayLabel(rokuPowerMode) == "Standby" ||
+            !RokuPowerMode.isLikelyReachable(rokuPowerMode) ||
             connectionStatus == ConnectionStatus.OFFLINE
     return when {
         ecosystemType != DeviceType.ROKU_TV -> PowerPresentation(
@@ -39,7 +45,7 @@ internal fun resolvePowerPresentation(
             isWake = true,
             isUncertain = true
         )
-        isStandby -> PowerPresentation(
+        shouldWake -> PowerPresentation(
             command = RemoteCommand.PowerOn,
             isWake = true,
             isUncertain = false
