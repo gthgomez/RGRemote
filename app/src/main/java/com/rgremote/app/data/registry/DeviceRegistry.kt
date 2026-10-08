@@ -41,10 +41,9 @@ class DeviceRegistry(private val dao: DeviceDao) {
         dao.removeDeviceAndDedupe(deviceId)
     }
 
-    /** Removes duplicate rows (same physical TV, different ids after scan/reinstall). */
-    suspend fun dedupeStoredDevices() {
+    /** Removes duplicate rows (same physical TV, different ids after scan/reinstall); returns how many rows were removed. */
+    suspend fun dedupeStoredDevices(): Int =
         dao.deduplicateStoredDevices()
-    }
 
     suspend fun setHdmiMapping(deviceId: String, port: HdmiPort?) {
         dao.setHdmiMapping(deviceId, port?.name)

@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rgremote.app.R
 import com.rgremote.app.data.apps.AppPinStore
 import com.rgremote.app.data.preferences.RemoteUiPreferences
 import com.rgremote.app.data.registry.DeviceRegistry
@@ -354,8 +355,8 @@ class RGRemoteViewModel(
 
     fun dedupeSavedDevices() {
         viewModelScope.launch {
-            registry.dedupeStoredDevices()
-            feedback.show("Merged duplicate saved TVs")
+            val merged = registry.dedupeStoredDevices()
+            feedback.show(context.resources.getQuantityString(R.plurals.dedupe_merged, merged, merged))
         }
     }
 

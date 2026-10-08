@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RocketLaunch
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.Tv
@@ -1111,6 +1112,7 @@ private fun RokuChannelPicker(
     onRefresh: () -> Unit,
     onPin: (RokuApp) -> Unit
 ) {
+    var query by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1130,9 +1132,25 @@ private fun RokuChannelPicker(
         if (apps.isEmpty()) {
             EmptyAppsHint(text = stringResource(R.string.channels_empty_hint), accent = accent)
         } else {
-            apps.forEach { app ->
-                val pinned = pins.any { it.deviceType == DeviceType.ROKU_TV && it.launchValue == app.id }
-                RokuChannelRow(app = app, pinned = pinned, accent = accent, onPin = onPin)
+            OutlinedTextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = query,
+                onValueChange = { query = it },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                placeholder = { Text(stringResource(R.string.channels_search_hint)) },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = SecondaryText)
+                }
+            )
+            val filtered = apps.filter { it.name.contains(query.trim(), ignoreCase = true) }
+            if (filtered.isEmpty()) {
+                EmptyAppsHint(text = stringResource(R.string.channels_search_empty), accent = accent)
+            } else {
+                filtered.forEach { app ->
+                    val pinned = pins.any { it.deviceType == DeviceType.ROKU_TV && it.launchValue == app.id }
+                    RokuChannelRow(app = app, pinned = pinned, accent = accent, onPin = onPin)
+                }
             }
         }
     }
@@ -1252,14 +1270,6 @@ private fun SettingsPanel(
                     enabled = true,
                     onClick = onOpenManualDevice
                 )
-                SettingsActionButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    label = stringResource(R.string.settings_merge_duplicates),
-                    icon = Icons.Default.Refresh,
-                    accent = accent,
-                    enabled = true,
-                    onClick = onDedupeSavedDevices
-                )
             }
             SettingsSection(
                 title = stringResource(R.string.settings_startup_title),
@@ -1337,6 +1347,14 @@ private fun SettingsPanel(
                             onRemove = { onRemoveSavedDevice(device.id) }
                         )
                     }
+                    SettingsActionButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        label = stringResource(R.string.settings_merge_duplicates),
+                        icon = Icons.Default.Check,
+                        accent = accent,
+                        enabled = true,
+                        onClick = onDedupeSavedDevices
+                    )
                 }
             }
             SettingsSection(
