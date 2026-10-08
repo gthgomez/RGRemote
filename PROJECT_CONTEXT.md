@@ -36,7 +36,7 @@ The app cannot prove which HDMI source is physically visible on the TV panel. Ro
 
 ## UI Direction
 
-The Roku-side UI is targeting a dense neon/glass remote surface based on the May 13, 2026 reference mockup. Keep Roku and Google TV visual states distinct: Roku can use the full cyber/glass treatment, while Google TV should keep its own paired/device state language and not inherit Roku-specific shortcuts blindly.
+The Remote tab targets the minimal "Halo" design in `docs/ui-target.md` (reference mockup in `docs/reference/`): wordmark header, device chip, glowing halo ring D-pad, three-button glass dock, and a More Controls sheet. Roku and Google TV states remain visually distinct through the device chip and capability gating, not separate screen languages. The legacy dense neon/glass direction is retired.
 
 See `docs/ui-target.md` for the active visual target.
 

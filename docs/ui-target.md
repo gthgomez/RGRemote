@@ -1,57 +1,108 @@
-# RGRemote UI Target
+# RGRemote UI Target — "Halo" Remote
 
-Last updated: 2026-05-15.
+Last updated: 2026-10-08. This document is the authoritative visual contract for the
+Remote tab redesign. It supersedes the May 13, 2026 dense neon/glass direction, which is
+retired. Any agent implementing UI must match this contract and the reference images.
 
-This document captures the active visual direction for RGRemote. The reference image is the May 13, 2026 neon/glass Roku remote mockup supplied by Jonathan. If the image file is unavailable, use the criteria below as the durable target.
+## Reference assets (in-repo)
 
-## Product Boundary
+- `docs/reference/halo-mockup-dark-light.png` — authoritative dual-theme mockup.
+- `docs/reference/halo-dark-phone.png` / `halo-light-phone.png` — per-theme full screens.
+- `docs/reference/halo-{dark,light}-{header,ring,dock}.png` — zoomed regions.
 
-Roku-side UI and Google TV UI are different modes.
+The mockup's phone hardware chrome (status bar, clock, Dynamic Island, home indicator)
+and the promotional backdrop are NOT part of the target. Clone the app screen only.
 
-- Roku mode should feel like the primary premium remote surface: neon purple, black glass, dense control grouping, etched circuitry, quick Roku shortcuts, HDMI tiles, and a launch panel.
-- Google TV mode should stay paired-device focused. It can share shell language and polish, but it should not inherit Roku-only shortcuts or imply Roku HDMI control from the Google adapter.
+## Product boundary
 
-## Target Feel
+One shared minimal remote design for both ecosystems. Ecosystem differences live in
+command semantics and capability gating, not in two different screen languages. Roku and
+Google TV states must remain visually distinct through the device chip and status text.
 
-- Dark glass base with thin violet outlines, small internal highlights, and restrained glow.
-- Dense, functional controls rather than oversized marketing panels.
-- Clear Roku selected state in the device header and remote card.
-- Main remote surface visible early on the screen, with quick actions reachable below it.
-- Bottom nav is slim, segmented, and visibly connected to the app shell.
-- Use accent color sparingly: violet for active remote state, green for online/power success, red only for destructive/power-off emphasis.
+## Screen composition (single screen, top to bottom)
 
-## Current Reference Assets
+| Zone | Vertical span | Content |
+|---|---|---|
+| Header | 0–13% | `RGRemote` wordmark ("RG" violet, remainder primary text) + kebab menu top-right |
+| Device chip | 13–26% | Full-width glass pill: violet rounded-square TV glyph well, device name, hairline divider, status dot + label, chevron-down; opens device switcher |
+| Halo ring | 26–78% | One continuous glowing circle; blank center; nothing visible while idle |
+| Glass dock | 78–90% | Floating capsule, three equal segments: Back, Home, Power |
+| More Controls | 90–100% | Small circular chevron-up well + letter-spaced "MORE CONTROLS" label; opens secondary-control sheet |
 
-Existing local visual pass screenshots:
+No bottom navigation bar, volume rail, or transport controls are visible on the default
+screen. All secondary controls (volume, mute, transport, app shortcuts, HDMI, keyboard,
+watch mode) live in the More Controls sheet. Apps and Settings remain reachable from that
+sheet; bottom navigation may be hidden in the default remote view.
 
-- `visual-pass-rgremote-roku-s25.png`
-- `visual-pass-rgremote-small-roku.png`
-- `visual-pass-rgremote-roku-font-1_3.png`
-- `visual-pass-rgremote-font-1_3.png`
+## Measured geometry
 
-These screenshots are evidence of previous passes, not the final target. Re-check them after UI changes instead of assuming they still match the code.
+Values measured from the reference PNG. They are the contract; tune only ±small margins
+against real-device screenshots.
 
-## Layout Requirements
+- Ring outer diameter: ~72% of screen width (~290dp at 412dp width). Ring center at ~47%
+  of screen height.
+- Center (select) disc: ~54% of ring diameter.
+- Ring bright core stroke: ~14% of ring diameter (~40dp), with soft glow shoulders
+  roughly doubling the perceived band.
+- Idle ring shows NO dots, arrows, or "OK" label. Direction arrows appear only while a
+  zone is pressed; center pulses briefly on Select.
+- Screen padding: 18–22dp horizontal. Header 48–52dp tall. Chip 48–54dp tall.
+- Dock capsule ~90dp tall, ~70% screen width, three equal segments with hairline
+  separators; each icon in a circular well ≥58dp.
+- More Controls affordance: minimum 48dp touch target.
 
-- Small phones must fit the header, Roku remote surface, and bottom nav without text overlap.
-- Normal phones should show the header, remote surface, first quick-action row, and bottom nav in a coherent vertical flow.
-- Controls must keep stable dimensions during press, disabled, loading, and font-scale states.
-- Quick actions should include HDMI tiles, Roku app shortcuts, manual channel/deep-link launch, and customization affordance.
-- Cards should use tight radii and slim strokes. Do not stack decorative cards inside decorative cards.
+## Touch contract (ring)
 
-## Visual QA
+Five zones: center Select (distance ≤ 0.49 × radius) and four directional sectors split
+by `|dx| >= |dy|`. Outside the outer radius = no hit. Drawing is independent of command
+dispatch; the ring is ecosystem-agnostic. Press-and-hold repeats using the existing
+400ms initial delay / 110ms interval; release must cancel and leave no queued commands.
+TalkBack must see five independently addressable actions (Up/Down/Left/Right/Select),
+never one unlabeled circle.
 
-Before calling a UI pass done:
+## Device chip states (must never falsely imply readiness)
 
-- Capture or inspect normal phone and small phone layouts.
-- Check font scale around 1.3x.
-- Confirm buttons and labels do not overlap or resize their containers.
-- Confirm Roku and Google TV selected states remain visually distinct.
-- Confirm quick actions are usable, not just decorative.
-- Confirm disabled/unpaired Google TV states do not look like successful Roku states.
+| ConnectionStatus | Dot | Label | Interaction |
+|---|---|---|---|
+| `ONLINE` | green | "Online" | normal |
+| `CHECKING` | amber | "Checking…" | controls disabled |
+| `OFFLINE` / `CONNECTION_FAILED` | gray/red | "Offline" / "Connection failed" | controls disabled, overlay hint |
+| `NOT_PAIRED` / `PAIRED` (Google unpaired) | violet | "Not paired — tap to set up" | opens pairing flow |
+| no device | neutral | "No TV — add one" | opens add-device flow |
 
-## Known Gaps To Watch
+Ring and dock render at reduced opacity and ignore touches whenever controls are
+disabled (`CHECKING`, `NOT_PAIRED`, `OFFLINE`, `CONNECTION_FAILED`, no device).
 
-- The reference target has richer micro-detail, etched texture, and ambient glows than the current Compose implementation.
-- Current visual QA is screenshot/manual driven; there is no automated screenshot test suite yet.
-- Hardware state can affect available controls, so visual states should be checked with both paired and unpaired device data.
+## Color tokens
+
+Canonical values live in `ui/theme/HaloColors.kt` (theme-flippable) and `Palette.kt`
+(theme-invariant accents). Sampled from the reference; re-sample at 1× if a token must
+change, and never inline hex literals in composables.
+
+Summary (dark → light):
+
+- Background: `#0B0F27` → `#070A1E` vignette; `#F4F7FF` → `#D8E8F8`.
+- Ambient blooms: violet/blue lower-left + right (dark); lavender/cyan plus a pink bloom
+  near the dock (light — the pink bloom is required, do not drop it).
+- Wordmark accent "RG": `#A26DF6` / `#6D3FD6`.
+- Ring gradient: violet `#8C5AE8` (upper-left) → core `#D58EFA` → blend `#8379F9` → cyan
+  core `#C0EAFE` → `#4497FB` (lower-right), edges `#2B2193` (dark); periwinkle `#9C9CE4`
+  → pale cyan `#9AF2FE` with faint glow (light).
+- Ring center: `#101543` + white 8% border / white + `#C9C9F5` border.
+- Dock: translucent indigo glass + white hairlines / white glass + `#E1E6F5` borders.
+- Power accent: existing `RgDanger` red with a red-tinted well (dark); `#E24A5E` + pink
+  tint (light).
+- Status green: `RgSuccess` (dark); `#1E9E62` (light, contrast-boosted).
+
+## Typography
+
+Wordmark and labels use the app's existing sans (no new font). "MORE CONTROLS" is
+uppercase with wide letter spacing (~2sp). Device chip text is single-line, ellipsized.
+
+## Verification expectations
+
+- Deterministic Compose previews must exist for dark and light × Online / Checking /
+  Offline / Not paired (see `ui/preview/VisualContractPreviews.kt`).
+- Screenshot baselines (Roborazzi, added in PR05) cover the same matrix.
+- Manual visual QA per `QA_CHECKLIST.md` includes S25 Ultra (primary device), a small
+  phone profile, font scale 1.3×, and landscape.

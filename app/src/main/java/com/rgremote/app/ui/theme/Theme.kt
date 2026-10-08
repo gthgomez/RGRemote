@@ -72,7 +72,11 @@ fun RGRemoteTheme(
         ThemeMode.LIGHT -> false
     }
     val rgColors = if (dark) DarkRgColors else LightRgColors
-    CompositionLocalProvider(LocalRgColors provides rgColors) {
+    val haloColors = if (dark) DarkHaloColors else LightHaloColors
+    CompositionLocalProvider(
+        LocalRgColors provides rgColors,
+        LocalHaloColors provides haloColors
+    ) {
         MaterialTheme(
             colorScheme = if (dark) RgRemoteDarkColors else RgRemoteLightColors,
             content = content
