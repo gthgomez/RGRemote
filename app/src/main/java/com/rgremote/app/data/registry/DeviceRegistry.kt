@@ -53,6 +53,25 @@ class DeviceRegistry(private val dao: DeviceDao) {
         dao.updateHealth(device.id, isOnline = true, failures = 0)
     }
 
+    /**
+     * Stores wifi/ethernet MACs learned from device-info probes when the row
+     * does not have them yet (manual-by-IP devices start without a MAC, which
+     * silently disables Wake-on-LAN). Never overwrites known values.
+     */
+    suspend fun backfillNetworkIdentity(
+        deviceId: String,
+        wifiMac: String?,
+        ethernetMac: String?,
+    ) {
+        if (wifiMac == null && ethernetMac == null) return
+        val row = dao.getDevice(deviceId)?.toDomain() ?: return
+        val newWifi = row.wifiMac ?: wifiMac
+        val newEth = row.ethernetMac ?: ethernetMac
+        if (newWifi != row.wifiMac || newEth != row.ethernetMac) {
+            dao.updateNetworkIdentity(deviceId, newWifi, newEth)
+        }
+    }
+
     suspend fun markCommandFailure(device: RegisteredDevice) {
         dao.incrementConsecutiveFailures(device.id)
     }

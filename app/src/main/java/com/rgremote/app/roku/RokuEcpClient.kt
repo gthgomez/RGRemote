@@ -17,6 +17,7 @@ import java.net.InetAddress
 import java.net.URL
 import java.net.URLEncoder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 class RokuNetworkAccessException(
@@ -63,8 +64,12 @@ class RokuEcpClient(
                 is RemoteCommand.Volume -> post(device, "keypress/${command.command.rokuKey()}")
                 RemoteCommand.PowerOn -> {
                     withContext(Dispatchers.IO) {
-                        device.wifiMac?.let { sendWakeOnLan(it) }
-                        device.ethernetMac?.let { sendWakeOnLan(it) }
+                        device.wifiMac?.let { sendWakeOnLan(it, device.ipAddress) }
+                        device.ethernetMac?.let { sendWakeOnLan(it, device.ipAddress) }
+                        // Give the NIC a moment to join the network before the
+                        // Home keypress probe; the keypress timeout still covers
+                        // slower boots.
+                        delay(WAKE_SETTLE_MILLIS)
                     }
                     post(device, "keypress/Home", wakeTimeoutMillis)
                 }
@@ -75,7 +80,7 @@ class RokuEcpClient(
             }
         }
 
-    private fun sendWakeOnLan(macAddress: String) {
+    private fun sendWakeOnLan(macAddress: String, deviceIp: String?) {
         val cleanMac = macAddress.replace(":", "").replace("-", "")
         if (cleanMac.length != 12) return
         val macBytes = ByteArray(6)
@@ -89,15 +94,27 @@ class RokuEcpClient(
         for (i in 0 until 16) {
             System.arraycopy(macBytes, 0, payload, 6 + i * 6, 6)
         }
-        try {
-            val address = InetAddress.getByName("255.255.255.255")
-            DatagramSocket().use { socket ->
-                socket.broadcast = true
-                socket.send(DatagramPacket(payload, payload.size, address, 9))
-                socket.send(DatagramPacket(payload, payload.size, address, 7))
+        // Send to the global broadcast AND the subnet-directed broadcast: many
+        // routers/APs drop 255.255.255.255, while x.y.z.255 (derived from the
+        // TV's own address) survives client isolation. Multiple bursts cover
+        // lossy ARP/bridging.
+        val addresses = wakeBroadcastAddresses(deviceIp)
+        repeat(WAKE_BURSTS) { attempt ->
+            addresses.forEach { address ->
+                try {
+                    val target = InetAddress.getByName(address)
+                    DatagramSocket().use { socket ->
+                        socket.broadcast = true
+                        socket.send(DatagramPacket(payload, payload.size, target, 9))
+                        socket.send(DatagramPacket(payload, payload.size, target, 7))
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+            if (attempt < WAKE_BURSTS - 1) {
+                Thread.sleep(WAKE_BURST_SPACING_MILLIS)
+            }
         }
     }
 
@@ -174,6 +191,9 @@ class RokuEcpClient(
     companion object {
         const val DEFAULT_TIMEOUT_MILLIS = 2_000
         const val WAKE_TIMEOUT_MILLIS = 6_000
+        const val WAKE_BURSTS = 3
+        const val WAKE_BURST_SPACING_MILLIS = 80L
+        const val WAKE_SETTLE_MILLIS = 500L
     }
 
     private fun rokuHttpException(path: String, code: Int, method: String): IOException =
@@ -213,3 +233,28 @@ private inline fun <T : HttpURLConnection, R> T.use(block: (T) -> R): R =
         disconnect()
         throw e
     }
+
+
+/**
+ * Wake-On-LAN targets for a device: the global broadcast plus the
+ * subnet-directed broadcast derived from the device's own IPv4 address
+ * (e.g. 10.0.0.81 -> 10.0.0.255). Routers and APs commonly drop the global
+ * broadcast; the directed one survives client isolation. Invalid or missing
+ * addresses degrade to the global broadcast only.
+ */
+internal fun wakeBroadcastAddresses(deviceIp: String?): List<String> {
+    val global = "255.255.255.255"
+    val subnet = deviceIp
+        ?.trim()
+        ?.split(".")
+        ?.takeIf { octets ->
+            octets.size == 4 && octets.all { octet ->
+                val value = octet.toIntOrNull()
+                value != null && value in 0..255
+            }
+        }
+        ?.toMutableList()
+        ?.also { it[3] = "255" }
+        ?.joinToString(".")
+    return if (subnet != null) listOf(global, subnet) else listOf(global)
+}
