@@ -33,7 +33,7 @@ import com.rgremote.app.ui.theme.HaloSpec
 import com.rgremote.app.ui.theme.LocalHaloColors
 
 private const val DisabledAlpha = 0.35f
-private const val AsleepAlpha = 0.25f
+private const val AsleepAlpha = 0f
 
 /**
  * The mockup's segmented glass dock: Back | Home | Power in one floating
