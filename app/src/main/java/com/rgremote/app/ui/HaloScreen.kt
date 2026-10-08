@@ -61,8 +61,10 @@ import com.rgremote.app.R
 import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RemoteCommand
+import com.rgremote.app.ui.ringGradientFill
 import com.rgremote.app.ui.theme.HaloColors
 import com.rgremote.app.ui.theme.HaloSpec
+import com.rgremote.app.ui.theme.ringGradientColors
 import com.rgremote.app.ui.theme.LocalHaloColors
 
 /**
@@ -550,7 +552,8 @@ private fun RingVolumeRail(
             Icon(
                 imageVector = Icons.Filled.Add,
                 contentDescription = null,
-                tint = halo.ringAccent
+                tint = Color.White,
+                modifier = Modifier.ringGradientFill(halo.ringGradientColors())
             )
         }
         Box(
@@ -566,7 +569,8 @@ private fun RingVolumeRail(
             Icon(
                 imageVector = Icons.Filled.Remove,
                 contentDescription = null,
-                tint = halo.ringAccent
+                tint = Color.White,
+                modifier = Modifier.ringGradientFill(halo.ringGradientColors())
             )
         }
     }

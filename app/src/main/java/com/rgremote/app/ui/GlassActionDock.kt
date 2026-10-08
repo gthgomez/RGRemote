@@ -29,7 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.rgremote.app.R
+import com.rgremote.app.ui.ringGradientFill
+import com.rgremote.app.ui.theme.HaloColors
 import com.rgremote.app.ui.theme.HaloSpec
+import com.rgremote.app.ui.theme.ringGradientColors
 import com.rgremote.app.ui.theme.LocalHaloColors
 
 private const val DisabledAlpha = 0.35f
@@ -65,9 +68,11 @@ internal fun GlassActionDock(
     Row(
         modifier = modifier
             .height(HaloSpec.DockHeightDp.dp)
+            // alpha BEFORE background/border so the whole capsule (not just
+            // the icons) fades — drawing after alpha() escapes the layer.
+            .alpha(dockAlpha)
             .background(halo.dockFill, shape)
-            .border(1.dp, halo.dockBorder, shape)
-            .alpha(dockAlpha),
+            .border(1.dp, halo.dockBorder, shape),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
@@ -79,7 +84,8 @@ internal fun GlassActionDock(
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = null,
-                tint = halo.dockIcon
+                tint = Color.White,
+                modifier = Modifier.ringGradientFill(halo.ringGradientColors())
             )
         }
         DockSeparator()
@@ -88,7 +94,12 @@ internal fun GlassActionDock(
             onAction = onHome,
             contentDescription = stringResource(R.string.remote_home)
         ) {
-            Icon(Icons.Filled.Home, contentDescription = null, tint = halo.dockIcon)
+            Icon(
+                Icons.Filled.Home,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.ringGradientFill(halo.ringGradientColors())
+            )
         }
         DockSeparator()
         val powerTint = when {
@@ -123,8 +134,8 @@ private fun DockSegment(
     Box(
         modifier = Modifier
             .size(HaloSpec.DockWellDp.dp)
-            .background(wellColor, CircleShape)
             .alpha(if (enabled) 1f else 0.45f)
+            .background(wellColor, CircleShape)
             .clickable(enabled = enabled, onClickLabel = contentDescription, onClick = onAction),
         contentAlignment = Alignment.Center
     ) {

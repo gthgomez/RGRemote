@@ -118,6 +118,14 @@ val LightHaloColors = HaloColors(
 
 val LocalHaloColors = staticCompositionLocalOf { DarkHaloColors }
 
+/** Vertical stop list matching the ring gradient, for gradient-filled glyphs. */
+fun HaloColors.ringGradientColors(): List<Color> = listOf(
+    ringTop,
+    ringMid,
+    ringBottom,
+    ringPink
+)
+
 /**
  * Measured geometry contract from `docs/ui-target.md`. Fractions are relative
  * to screen width (ring) or parent size (the rest); components must consume
@@ -149,13 +157,13 @@ object HaloSpec {
     const val ChipHeightDp = 52f
 
     /** Dock capsule height in dp. */
-    const val DockHeightDp = 76f
+    const val DockHeightDp = 64f
 
     /** Dock width as a fraction of screen width. */
     const val DockWidthFraction = 0.80f
 
     /** Minimum circular dock well diameter in dp. */
-    const val DockWellDp = 52f
+    const val DockWellDp = 46f
 
     /** Minimum touch target for the More Controls affordance in dp. */
     const val MoreControlsMinTargetDp = 48f
