@@ -6,7 +6,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -119,7 +122,37 @@ internal fun HaloRemoteScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var dpadGeneration by remember { mutableStateOf(0L) }
 
-    Box(modifier.fillMaxSize()) {
+    // Screen-wide "awake" state: any touch anywhere wakes the secondary
+    // controls (+/- rail, glass dock); after ScreenAwakeLingerMillis of no
+    // touch they fade. The dock dims and stops responding while asleep.
+    var controlsAwake by remember { mutableStateOf(true) }
+    var awakeHideJob by remember { mutableStateOf<Job?>(null) }
+    val wakeScope = rememberCoroutineScope()
+    val wakeControls = {
+        awakeHideJob?.cancel()
+        controlsAwake = true
+        awakeHideJob = wakeScope.launch {
+            delay(ScreenAwakeLingerMillis)
+            controlsAwake = false
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        // Fade the secondary controls after the initial idle window.
+        wakeControls()
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            // Passive wake listener: sees every touch before children on the
+            // Initial pass, never consumes, so children behave unchanged.
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    wakeControls()
+                }
+            }
+    ) {
         HaloBackdrop()
         Column(
             modifier = Modifier
@@ -149,20 +182,6 @@ internal fun HaloRemoteScreen(
                     maxHeight * 0.96f,
                     HaloSpec.RingMaxDiameterDp.dp
                 )
-                var railVisible by remember { mutableStateOf(false) }
-                var hideRailJob by remember { mutableStateOf<Job?>(null) }
-                val railScope = rememberCoroutineScope()
-                val showRail = {
-                    hideRailJob?.cancel()
-                    railVisible = true
-                }
-                val scheduleRailHide = {
-                    hideRailJob?.cancel()
-                    hideRailJob = railScope.launch {
-                        delay(RailLingerMillis)
-                        railVisible = false
-                    }
-                }
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -180,17 +199,10 @@ internal fun HaloRemoteScreen(
                     }
                 },
                 onSequenceEnd = onEndDpadSequence,
-                onPressedChange = { active ->
-                    if (active) showRail() else scheduleRailHide()
-                },
-                // Any touch in the ring area reveals the +/- rail, even a miss.
-                onDown = { showRail() },
                 modifier = Modifier.width(ringDiameter)
                 )
-                    // The +/− rail appears on any ring-area touch and lingers
-                    // briefly after release, so users can see it before pressing.
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = railVisible,
+                        visible = controlsAwake,
                         enter = fadeIn(),
                         exit = fadeOut(),
                         modifier = Modifier.align(Alignment.CenterEnd)
@@ -205,6 +217,7 @@ internal fun HaloRemoteScreen(
             Spacer(Modifier.weight(0.4f))
             GlassActionDock(
                 enabled = controlsEnabled,
+                awake = controlsAwake,
                 power = power,
                 powerEnabled = powerEnabled,
                 onBack = { onCommand(RemoteCommand.Back) },
@@ -559,4 +572,4 @@ private fun RingVolumeRail(
     }
 }
 
-private const val RailLingerMillis = 4000L
+private const val ScreenAwakeLingerMillis = 4000L
