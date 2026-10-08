@@ -293,12 +293,16 @@ private fun RGRemoteScreen(
         bottomBar = {
             // Halo contract: no bottom navigation on the default remote screen;
             // Apps and Settings are reachable from the More Controls sheet.
-            if (state.selectedTab != RemoteTab.REMOTE) {
-                NeoBottomNavigation(
-                    selectedTab = state.selectedTab,
-                    accent = accent,
-                    onSelectTab = onSelectTab
-                )
+            // The navigation-bar inset stays reserved on every tab so content
+            // never jumps when the nav bar appears or disappears.
+            Box(Modifier.navigationBarsPadding()) {
+                if (state.selectedTab != RemoteTab.REMOTE) {
+                    NeoBottomNavigation(
+                        selectedTab = state.selectedTab,
+                        accent = accent,
+                        onSelectTab = onSelectTab
+                    )
+                }
             }
         }
     ) { padding ->

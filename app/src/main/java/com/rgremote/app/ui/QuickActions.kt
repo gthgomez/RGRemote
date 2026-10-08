@@ -127,6 +127,7 @@ internal fun RemoteShortcutDock(
     onLaunchPreset: (String) -> Unit,
     onLaunchPinnedApp: (AppLaunchTarget) -> Unit,
     onSelectTab: (RemoteTab) -> Unit,
+    showAppsLink: Boolean = true,
 ) {
     val ecosystemPins = state.pinnedApps.filter { it.deviceType == ecosystem.type }.take(4)
     val fallbackPresets = when (ecosystem.type) {
@@ -145,16 +146,18 @@ internal fun RemoteShortcutDock(
                 fontWeight = FontWeight.Bold,
                 color = SecondaryText
             )
-            Text(
-                text = stringResource(R.string.shortcuts_apps_link),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onSelectTab(RemoteTab.APPS) }
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = accent
-            )
+            if (showAppsLink) {
+                Text(
+                    text = stringResource(R.string.shortcuts_apps_link),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onSelectTab(RemoteTab.APPS) }
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = accent
+                )
+            }
         }
         PinnedQuickActionsRow(
             pins = ecosystemPins,
@@ -247,7 +250,7 @@ internal fun KeyboardPanel(
             onValueChange = { draft = it },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
-            placeholder = { Text(stringResource(R.string.keyboard_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            placeholder = { Text("") }
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -527,7 +530,10 @@ private fun PresetLogo(label: String, accent: Color, isAdd: Boolean) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            "YouTube" -> Row(verticalAlignment = Alignment.CenterVertically) {
+            "YouTube" -> Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(
                     modifier = Modifier
                         .size(width = 20.dp, height = 14.dp)
@@ -538,7 +544,15 @@ private fun PresetLogo(label: String, accent: Color, isAdd: Boolean) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color(0xFF0B101C), modifier = Modifier.size(11.dp))
                 }
                 Spacer(Modifier.width(4.dp))
-                Text("YouTube", color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+                Text(
+                    text = "YouTube",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
             }
             "Disney+" -> Text(
                 text = "Disney+",
@@ -548,7 +562,14 @@ private fun PresetLogo(label: String, accent: Color, isAdd: Boolean) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            else -> Text(label, color = PrimaryText, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            else -> Text(
+                text = label,
+                color = PrimaryText,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
