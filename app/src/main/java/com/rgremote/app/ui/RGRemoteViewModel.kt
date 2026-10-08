@@ -570,6 +570,19 @@ class RGRemoteViewModel(
         send(RemoteCommand.Dpad(direction))
     }
 
+    /** Opens a halo hold-repeat sequence; returns the token for [sendDpad] repeats. */
+    fun beginDpadSequence(): Long = commandExecutor.beginDpadSequence()
+
+    /** Ends a halo hold-repeat sequence, dropping queued but unexecuted repeats. */
+    fun cancelDpadSequence() {
+        commandExecutor.cancelQueuedDpads()
+    }
+
+    /** Generation-gated repeat dispatch from the halo ring. */
+    fun sendDpad(direction: DpadDirection, generation: Long) {
+        commandExecutor.sendDpad(direction, generation)
+    }
+
     fun sendVolume(command: VolumeCommand) {
         send(RemoteCommand.Volume(command))
     }

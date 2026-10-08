@@ -3,6 +3,7 @@ package com.rgremote.app.ui.controller
 import android.util.Log
 import com.rgremote.app.data.registry.DeviceRegistry
 import com.rgremote.app.domain.DeviceType
+import com.rgremote.app.domain.DpadDirection
 import com.rgremote.app.domain.HdmiPort
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.domain.RemoteAdapter
@@ -32,6 +33,7 @@ class DeviceCommandExecutor(
     private val feedback: CommandFeedbackController,
 ) {
     private val commandQueue = Channel<suspend () -> Unit>(64)
+    private val dpadGate = DpadSequenceGate()
 
     init {
         scope.launch {
@@ -57,6 +59,27 @@ class DeviceCommandExecutor(
     fun send(command: RemoteCommand) {
         val device = getState().selectedDevice ?: return feedback.show("No selected device")
         enqueueCommand {
+            if (sendTo(device, command).isSuccess) {
+                onCommandSuccess(device, command)
+            }
+        }
+    }
+
+    /** Opens a hold-repeat sequence; returns the token every repeat must carry. */
+    fun beginDpadSequence(): Long = dpadGate.beginSequence()
+
+    /**
+     * Ends the active hold-repeat sequence: bumps the generation so dpad
+     * commands already queued but not yet executed are dropped on dequeue.
+     */
+    fun cancelQueuedDpads(): Long = dpadGate.cancelActiveSequence()
+
+    /** Gated repeat dispatch for the halo ring; stale repeats are skipped. */
+    fun sendDpad(direction: DpadDirection, generation: Long) {
+        val device = getState().selectedDevice ?: return feedback.show("No selected device")
+        enqueueCommand {
+            if (!dpadGate.isValid(generation)) return@enqueueCommand
+            val command = RemoteCommand.Dpad(direction)
             if (sendTo(device, command).isSuccess) {
                 onCommandSuccess(device, command)
             }
