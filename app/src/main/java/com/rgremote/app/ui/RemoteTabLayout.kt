@@ -62,11 +62,17 @@ internal fun RemoteTabLayout(
     onSendText: (String) -> Unit,
     onKeyboardEnter: () -> Unit,
     onKeyboardBackspace: () -> Unit,
+    onBeginDpadSequence: () -> Long,
+    onDpadRepeat: (DpadDirection, Long) -> Unit,
+    onEndDpadSequence: () -> Unit,
     setupGuideBanner: @Composable () -> Unit,
 ) {
     val deviceDown = state.connectionStatus == ConnectionStatus.OFFLINE ||
             state.connectionStatus == ConnectionStatus.CONNECTION_FAILED
-    val controlsEnabled = state.selectedDevice != null && !deviceDown
+    // CHECKING and NOT_PAIRED must never look ready (docs/ui-target.md chip states).
+    val controlsUnavailable = state.connectionStatus == ConnectionStatus.CHECKING ||
+            state.connectionStatus == ConnectionStatus.NOT_PAIRED
+    val controlsEnabled = state.selectedDevice != null && !deviceDown && !controlsUnavailable
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         if (maxWidth >= TwoPaneMinWidth) {
@@ -99,6 +105,9 @@ internal fun RemoteTabLayout(
                 onSendText = onSendText,
                 onKeyboardEnter = onKeyboardEnter,
                 onKeyboardBackspace = onKeyboardBackspace,
+                onBeginDpadSequence = onBeginDpadSequence,
+                onDpadRepeat = onDpadRepeat,
+                onEndDpadSequence = onEndDpadSequence,
                 setupGuideBanner = setupGuideBanner
             )
         } else {
@@ -132,6 +141,9 @@ internal fun RemoteTabLayout(
                 onSendText = onSendText,
                 onKeyboardEnter = onKeyboardEnter,
                 onKeyboardBackspace = onKeyboardBackspace,
+                onBeginDpadSequence = onBeginDpadSequence,
+                onDpadRepeat = onDpadRepeat,
+                onEndDpadSequence = onEndDpadSequence,
                 setupGuideBanner = setupGuideBanner
             )
         }
@@ -168,13 +180,19 @@ private fun TwoPaneContent(
     onSendText: (String) -> Unit,
     onKeyboardEnter: () -> Unit,
     onKeyboardBackspace: () -> Unit,
+    onBeginDpadSequence: () -> Long,
+    onDpadRepeat: (DpadDirection, Long) -> Unit,
+    onEndDpadSequence: () -> Unit,
     setupGuideBanner: @Composable () -> Unit,
 ) {
+    val volumeEnabled = controlsEnabled &&
+            (ecosystem.type != com.rgremote.app.domain.DeviceType.ROKU_TV ||
+                state.selectedRokuControls.supportsVolume != false)
     Row(
         modifier = Modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.spacedBy(sectionSpacing)
     ) {
-        RemoteSurface(
+        HaloRemoteScreen(
             modifier = Modifier
                 .weight(0.56f, fill = true)
                 .fillMaxSize(),
@@ -182,21 +200,28 @@ private fun TwoPaneContent(
             ecosystem = ecosystem,
             accent = accent,
             accentSoft = accentSoft,
-            enabled = controlsEnabled,
-            powerEnabled = state.selectedDevice != null,
-            rokuControls = state.selectedRokuControls,
-            showWatchGoogleTv = showWatchGoogleTv,
-            showWatchRoku = showWatchRoku,
-            onSelect = onSelect,
-            onGoogleSelect = onGoogleSelect,
-            onWatchGoogleTv = onWatchGoogleTv,
-            onWatchRoku = onWatchRoku,
-            onDpad = onDpad,
-            onCommand = onCommand,
-            onVolume = onVolume,
+            controlsEnabled = controlsEnabled,
+            volumeEnabled = volumeEnabled,
             onScan = onScan,
             onRefreshStatus = onRefreshStatus,
             onOpenSetupGuide = onOpenSetupGuide,
+            onSelect = onSelect,
+            onGoogleSelect = onGoogleSelect,
+            onBeginDpadSequence = onBeginDpadSequence,
+            onDpadRepeat = onDpadRepeat,
+            onEndDpadSequence = onEndDpadSequence,
+            onSelectCommand = { onCommand(RemoteCommand.Select) },
+            onCommand = onCommand,
+            onVolume = onVolume,
+            onLaunchPreset = onLaunchPreset,
+            onLaunchPinnedApp = onLaunchPinnedApp,
+            onSelectTab = onSelectTab,
+            onTargetChange = onTargetChange,
+            onLaunch = onLaunch,
+            onSwitchInput = onSwitchInput,
+            onSendText = onSendText,
+            onKeyboardEnter = onKeyboardEnter,
+            onKeyboardBackspace = onKeyboardBackspace
         )
         Column(
             modifier = Modifier
@@ -234,11 +259,11 @@ private fun TwoPaneContent(
 @Composable
 private fun StackedContent(
     viewportHeight: Dp,
-    sectionSpacing: Dp,
     state: RGRemoteUiState,
     ecosystem: EcosystemStyle,
     accent: Color,
     accentSoft: Color,
+    sectionSpacing: Dp,
     showWatchGoogleTv: Boolean,
     showWatchRoku: Boolean,
     controlsEnabled: Boolean,
@@ -262,155 +287,49 @@ private fun StackedContent(
     onSendText: (String) -> Unit,
     onKeyboardEnter: () -> Unit,
     onKeyboardBackspace: () -> Unit,
+    onBeginDpadSequence: () -> Long,
+    onDpadRepeat: (DpadDirection, Long) -> Unit,
+    onEndDpadSequence: () -> Unit,
     setupGuideBanner: @Composable () -> Unit,
 ) {
-    val remoteWeight = if (setupGuideNeeded(state)) 0.64f else 0.72f
-    val dockWeight = 1f - remoteWeight
-
+    val volumeEnabled = controlsEnabled &&
+            (ecosystem.type != com.rgremote.app.domain.DeviceType.ROKU_TV ||
+                state.selectedRokuControls.supportsVolume != false)
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(sectionSpacing)
     ) {
         setupGuideBanner()
-        RemoteSurface(
+        HaloRemoteScreen(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(remoteWeight, fill = true),
+                .weight(1f, fill = true),
             state = state,
             ecosystem = ecosystem,
             accent = accent,
             accentSoft = accentSoft,
-            enabled = controlsEnabled,
-            powerEnabled = state.selectedDevice != null,
-            rokuControls = state.selectedRokuControls,
-            showWatchGoogleTv = showWatchGoogleTv,
-            showWatchRoku = showWatchRoku,
-            onSelect = onSelect,
-            onGoogleSelect = onGoogleSelect,
-            onWatchGoogleTv = onWatchGoogleTv,
-            onWatchRoku = onWatchRoku,
-            onDpad = onDpad,
-            onCommand = onCommand,
-            onVolume = onVolume,
+            controlsEnabled = controlsEnabled,
+            volumeEnabled = volumeEnabled,
             onScan = onScan,
             onRefreshStatus = onRefreshStatus,
             onOpenSetupGuide = onOpenSetupGuide,
+            onSelect = onSelect,
+            onGoogleSelect = onGoogleSelect,
+            onBeginDpadSequence = onBeginDpadSequence,
+            onDpadRepeat = onDpadRepeat,
+            onEndDpadSequence = onEndDpadSequence,
+            onSelectCommand = { onCommand(RemoteCommand.Select) },
+            onCommand = onCommand,
+            onVolume = onVolume,
+            onLaunchPreset = onLaunchPreset,
+            onLaunchPinnedApp = onLaunchPinnedApp,
+            onSelectTab = onSelectTab,
+            onTargetChange = onTargetChange,
+            onLaunch = onLaunch,
+            onSwitchInput = onSwitchInput,
+            onSendText = onSendText,
+            onKeyboardEnter = onKeyboardEnter,
+            onKeyboardBackspace = onKeyboardBackspace
         )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(dockWeight, fill = true)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(if (deviceDown) 0.35f else 1f)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(sectionSpacing)
-            ) {
-                RemoteShortcutDock(
-                    state = state,
-                    ecosystem = ecosystem,
-                    accent = accent,
-                    onLaunchPreset = onLaunchPreset,
-                    onLaunchPinnedApp = onLaunchPinnedApp,
-                    onSelectTab = onSelectTab
-                )
-                RemoteUtilitiesDock(
-                    state = state,
-                    ecosystem = ecosystem,
-                    accent = accent,
-                    target = state.launchTarget,
-                    onTargetChange = onTargetChange,
-                    onLaunch = onLaunch,
-                    onSwitchInput = onSwitchInput,
-                    onSendText = onSendText,
-                    onKeyboardEnter = onKeyboardEnter,
-                    onKeyboardBackspace = onKeyboardBackspace
-                )
-            }
-            if (deviceDown) {
-                OfflineOverlay(
-                    modifier = Modifier.matchParentSize(),
-                    state = state,
-                    accent = accent,
-                    onScan = onScan,
-                    onRefreshStatus = onRefreshStatus
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OfflineOverlay(
-    modifier: Modifier = Modifier,
-    state: RGRemoteUiState,
-    accent: Color,
-    onScan: () -> Unit,
-    onRefreshStatus: () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        event.changes.forEach { it.consume() }
-                        if (event.changes.all { !it.pressed }) break
-                    }
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = state.selectedDevice?.let {
-                        stringResource(
-                            R.string.offline_device_status,
-                            it.friendlyName,
-                            connectionStatusText(state.connectionStatus).lowercase()
-                        )
-                    } ?: connectionStatusText(state.connectionStatus),
-                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    color = PrimaryText
-                )
-                Text(
-                    text = stringResource(R.string.offline_hint),
-                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                    color = SecondaryText,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.Button(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = accent,
-                        contentColor = androidx.compose.ui.graphics.Color.White
-                    ),
-                    enabled = !state.isScanning,
-                    onClick = onScan
-                ) {
-                    Text(stringResource(R.string.common_scan))
-                }
-                androidx.compose.material3.Button(
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = NeoCard.copy(alpha = 0.9f),
-                        contentColor = PrimaryText
-                    ),
-                    onClick = onRefreshStatus
-                ) {
-                    Text(stringResource(R.string.header_menu_refresh_status))
-                }
-            }
-        }
     }
 }

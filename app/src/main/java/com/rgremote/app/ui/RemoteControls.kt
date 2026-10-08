@@ -210,10 +210,9 @@ internal fun RemoteSurface(
                     onGoogleSelect = onGoogleSelect
                 )
 
-                val isStandby = RokuPowerMode.displayLabel(rokuPowerMode) == "Standby" ||
-                        state.connectionStatus == ConnectionStatus.OFFLINE
-                val powerModeUnknown = ecosystem.type == DeviceType.ROKU_TV && rokuPowerMode == null &&
-                        state.connectionStatus != ConnectionStatus.OFFLINE
+                val power = resolvePowerPresentation(ecosystem.type, rokuPowerMode, state.connectionStatus)
+                val powerControlEnabled =
+                    if (power.isWake) powerEnabled else powerOffEnabled
 
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -226,27 +225,18 @@ internal fun RemoteSurface(
                     RoundIconButton(Icons.Default.Home, stringResource(R.string.remote_home), accentSoft, enabled) {
                         hapticTrigger { onCommand(RemoteCommand.Home) }
                     }
-                    val powerCommand = when {
-                        ecosystem.type != DeviceType.ROKU_TV -> RemoteCommand.PowerToggle
-                        powerModeUnknown -> RemoteCommand.PowerToggle
-                        isStandby -> RemoteCommand.PowerOn
-                        else -> RemoteCommand.PowerOff
-                    }
                     val powerAccent = when {
-                        ecosystem.type != DeviceType.ROKU_TV -> DangerRed
-                        powerModeUnknown -> SecondaryText
-                        isStandby -> SuccessGreen
+                        power.isWake -> SuccessGreen
+                        power.isUncertain -> SecondaryText
                         else -> DangerRed
                     }
-                    val powerControlEnabled =
-                        if (ecosystem.type == DeviceType.ROKU_TV && isStandby) powerEnabled else powerOffEnabled
                     RoundIconButton(
                         icon = Icons.Default.PowerSettingsNew,
-                        label = if (!powerModeUnknown && isStandby) stringResource(R.string.remote_wake) else stringResource(R.string.remote_power),
+                        label = if (power.isWake) stringResource(R.string.remote_wake) else stringResource(R.string.remote_power),
                         accent = powerAccent,
                         enabled = powerControlEnabled
                     ) {
-                        hapticTrigger { onCommand(powerCommand) }
+                        hapticTrigger { onCommand(power.command) }
                     }
                 }
 
