@@ -149,13 +149,13 @@ object HaloSpec {
     const val ChipHeightDp = 52f
 
     /** Dock capsule height in dp. */
-    const val DockHeightDp = 90f
+    const val DockHeightDp = 76f
 
     /** Dock width as a fraction of screen width. */
-    const val DockWidthFraction = 0.70f
+    const val DockWidthFraction = 0.80f
 
     /** Minimum circular dock well diameter in dp. */
-    const val DockWellDp = 58f
+    const val DockWellDp = 52f
 
     /** Minimum touch target for the More Controls affordance in dp. */
     const val MoreControlsMinTargetDp = 48f
