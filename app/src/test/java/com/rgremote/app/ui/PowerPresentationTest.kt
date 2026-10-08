@@ -38,6 +38,29 @@ class PowerPresentationTest {
     }
 
     @Test
+    fun `roku deep off wakes instead of powering off`() {
+        // Regression: ECP powerMode "poweroff" (deep off / Fast TV Start) must
+        // resolve to wake — the old logic sent PowerOff at a TV that needed waking.
+        val p = resolvePowerPresentation(DeviceType.ROKU_TV, "poweroff", ConnectionStatus.ONLINE)
+        assertEquals(RemoteCommand.PowerOn, p.command)
+        assertTrue(p.isWake)
+    }
+
+    @Test
+    fun `roku deep off while offline wakes`() {
+        val p = resolvePowerPresentation(DeviceType.ROKU_TV, "poweroff", ConnectionStatus.OFFLINE)
+        assertEquals(RemoteCommand.PowerOn, p.command)
+        assertTrue(p.isWake)
+    }
+
+    @Test
+    fun `roku displayoff wakes`() {
+        val p = resolvePowerPresentation(DeviceType.ROKU_TV, "displayoff", ConnectionStatus.ONLINE)
+        assertEquals(RemoteCommand.PowerOn, p.command)
+        assertTrue(p.isWake)
+    }
+
+    @Test
     fun `roku unknown power mode never sends power toggle`() {
         // Regression: RokuEcpClient rejects PowerToggle; unknown mode must wake instead.
         val p = resolvePowerPresentation(DeviceType.ROKU_TV, null, ConnectionStatus.ONLINE)
