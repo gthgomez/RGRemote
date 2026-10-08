@@ -99,6 +99,7 @@ class RokuStatusPoller(
             .onSuccess { info ->
                 val resolved = resolveFreshRow(device, info)
                 registry.markCommandSuccess(resolved)
+                registry.backfillNetworkIdentity(resolved.id, info.wifiMac, info.ethernetMac)
                 updateRokuControlAvailability(resolved.id, info)
                 updateRokuPowerMode(resolved.id, info.powerMode)
                 rokuConnection.queryActiveApp(resolved)

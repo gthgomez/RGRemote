@@ -148,8 +148,16 @@ class DeviceCommandExecutor(
                     }
                     if (showFeedback) {
                         val powerMode = getState().rokuPowerModeByDeviceId[device.id]
-                        val hint = RokuPowerMode.wakeHint(powerMode)
-                        feedback.show(hint ?: "${device.friendlyName}: ${error.displayMessage()}")
+                        val macMissing = device.wifiMac == null && device.ethernetMac == null
+                        val base = RokuPowerMode.wakeHint(powerMode)
+                            ?: "${device.friendlyName}: ${error.displayMessage()}"
+                        feedback.show(
+                            if (macMissing) {
+                                "$base — no saved MAC, wake can't send magic packets. Rescan the TV to capture one."
+                            } else {
+                                base
+                            }
+                        )
                     }
                 } else {
                     statusWriter.writeForDevice(device.id, withStatus(ConnectionStatus.CONNECTION_FAILED))

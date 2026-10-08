@@ -28,6 +28,12 @@ interface DeviceDao {
     suspend fun updateHealth(deviceId: String, isOnline: Boolean, failures: Int)
 
     @Query(
+        "UPDATE devices SET wifiMac = :wifiMac, ethernetMac = :ethernetMac " +
+            "WHERE id = :deviceId"
+    )
+    suspend fun updateNetworkIdentity(deviceId: String, wifiMac: String?, ethernetMac: String?)
+
+    @Query(
         "UPDATE devices " +
             "SET isOnline = CASE WHEN consecutiveFailures + 1 < 3 THEN 1 ELSE 0 END, " +
             "    consecutiveFailures = consecutiveFailures + 1 " +
