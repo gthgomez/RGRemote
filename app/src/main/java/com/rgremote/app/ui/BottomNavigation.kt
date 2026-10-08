@@ -109,9 +109,7 @@ internal fun NeoBottomNavigation(
     onSelectTab: (RemoteTab) -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding(),
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
         color = NeoBottomBar,
         border = BorderStroke(1.dp, GlassStroke)

@@ -170,7 +170,9 @@ internal fun MoreControlsSheet(
                 accent = accent,
                 onLaunchPreset = onLaunchPreset,
                 onLaunchPinnedApp = onLaunchPinnedApp,
-                onSelectTab = onSelectTab
+                onSelectTab = onSelectTab,
+                // The sheet already has an Apps pill; no duplicate link here.
+                showAppsLink = false
             )
             RemoteUtilitiesDock(
                 state = state,
