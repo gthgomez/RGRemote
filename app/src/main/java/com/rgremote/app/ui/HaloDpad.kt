@@ -183,7 +183,7 @@ fun HaloDpad(
     val semanticsModifier = if (enabled) {
         Modifier.semantics {
             contentDescription = "Directional pad ring"
-            customActions = RingAction.values().map { action ->
+            customActions = RingAction.entries.map { action ->
                 CustomAccessibilityAction(action.accessibilityLabel()) {
                     flash(action)
                     true
