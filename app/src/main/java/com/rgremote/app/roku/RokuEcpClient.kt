@@ -37,7 +37,7 @@ internal fun rokuLitKey(char: Char): String? =
     when {
         char.code !in ' '.code..'~'.code -> null
         char.isLetterOrDigit() -> "Lit_$char"
-        else -> "Lit_" + URLEncoder.encode(char.toString(), Charsets.UTF_8).replace("+", "%20")
+        else -> "Lit_" + URLEncoder.encode(char.toString(), "UTF-8").replace("+", "%20")
     }
 
 class RokuEcpClient(

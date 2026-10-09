@@ -13,11 +13,12 @@ val DEVICE_COMPARATOR: Comparator<RegisteredDevice> =
 
 fun List<RegisteredDevice>.canonicalDevicesPerType(): List<RegisteredDevice> {
     val groups = groupBy { device ->
-        if (device.uniqueId.startsWith("manual:")) {
-            "ip:${device.ipAddress}"
+        val identity = if (device.uniqueId.startsWith("manual:")) {
+            "ip:${device.ipAddress}:${device.port}"
         } else {
             "serial:${device.uniqueId.lowercase()}"
         }
+        "${device.type}:$identity"
     }
     return groups.map { (_, groupDevices) ->
         groupDevices.maxWithOrNull(DEVICE_COMPARATOR) ?: groupDevices.first()

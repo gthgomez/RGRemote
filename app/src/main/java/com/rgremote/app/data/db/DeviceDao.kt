@@ -122,11 +122,12 @@ interface DeviceDao {
         var removed = 0
         // Group by physical device identity: real serial number if available, otherwise fallback to IP
         val groups = rows.groupBy { row ->
-            if (row.uniqueId.startsWith("manual:")) {
-                "ip:${row.ipAddress}"
+            val identity = if (row.uniqueId.startsWith("manual:")) {
+                "ip:${row.ipAddress}:${row.port}"
             } else {
                 "serial:${row.uniqueId.lowercase()}"
             }
+            "${row.type}:$identity"
         }
 
         groups.forEach { (_, groupRows) ->
@@ -171,8 +172,8 @@ interface DeviceDao {
 }
 
 private val DEVICE_ROW_COMPARATOR: Comparator<DeviceEntity> =
-    compareBy<DeviceEntity> { it.uniqueId.startsWith("manual:") }
-        .thenBy { it.hdmiPortMapping == null }
-        .thenBy { !it.isOnline }
-        .thenBy { it.consecutiveFailures != 0 }
-        .thenByDescending { it.lastSeenMillis }
+    compareBy<DeviceEntity> { !it.uniqueId.startsWith("manual:") }
+        .thenBy { it.hdmiPortMapping != null }
+        .thenBy { it.isOnline }
+        .thenBy { it.consecutiveFailures == 0 }
+        .thenBy { it.lastSeenMillis }
