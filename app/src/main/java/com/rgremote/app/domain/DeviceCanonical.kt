@@ -6,10 +6,10 @@ package com.rgremote.app.domain
  */
 val DEVICE_COMPARATOR: Comparator<RegisteredDevice> =
     compareBy<RegisteredDevice> { !it.uniqueId.startsWith("manual:") }
-        .thenBy { it.hdmiPortMapping != null }
         .thenBy { it.isOnline }
         .thenBy { it.consecutiveFailures == 0 }
         .thenBy { it.lastSeenMillis }
+        .thenBy { it.hdmiPortMapping != null }
 
 fun List<RegisteredDevice>.canonicalDevicesPerType(): List<RegisteredDevice> {
     val groups = groupBy { device ->

@@ -106,9 +106,9 @@ interface DeviceDao {
             )
         }
         upsertDevice(merged)
-        migratePairingCredential(staleDeviceId, merged.id)
-        deletePairingCredential(staleDeviceId)
         if (staleDeviceId != merged.id) {
+            migratePairingCredential(staleDeviceId, merged.id)
+            deletePairingCredential(staleDeviceId)
             deleteDevice(staleDeviceId)
         }
     }
@@ -173,7 +173,7 @@ interface DeviceDao {
 
 private val DEVICE_ROW_COMPARATOR: Comparator<DeviceEntity> =
     compareBy<DeviceEntity> { !it.uniqueId.startsWith("manual:") }
-        .thenBy { it.hdmiPortMapping != null }
         .thenBy { it.isOnline }
         .thenBy { it.consecutiveFailures == 0 }
         .thenBy { it.lastSeenMillis }
+        .thenBy { it.hdmiPortMapping != null }
