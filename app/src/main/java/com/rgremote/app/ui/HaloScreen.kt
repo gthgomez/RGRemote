@@ -49,6 +49,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -230,7 +231,7 @@ internal fun HaloRemoteScreen(
             )
             Spacer(Modifier.height(14.dp))
             MoreControlsAffordance(
-                enabled = true,
+                enabled = !showMoreControls,
                 onClick = { showMoreControls = true }
             )
             Spacer(Modifier.height(10.dp))
@@ -276,7 +277,7 @@ internal fun HaloRemoteScreen(
 
 /** Indigo-to-vignette background with the mockup's ambient blooms. */
 @Composable
-private fun HaloBackdrop() {
+internal fun HaloBackdrop() {
     val halo = LocalHaloColors.current
     Box(
         Modifier
@@ -322,7 +323,7 @@ private fun HaloBackdrop() {
 }
 
 @Composable
-private fun HaloTopBar(
+internal fun HaloTopBar(
     menuExpanded: Boolean,
     onMenuToggle: (Boolean) -> Unit,
     state: RGRemoteUiState,
@@ -390,7 +391,7 @@ internal fun haloStatusColor(status: ConnectionStatus, halo: HaloColors = LocalH
     }
 
 @Composable
-private fun HaloDeviceChip(
+internal fun HaloDeviceChip(
     state: RGRemoteUiState,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -484,6 +485,8 @@ private fun MoreControlsAffordance(
 ) {
     val halo = LocalHaloColors.current
     val ringBrush = rememberRingBrush()
+    val density = LocalDensity.current
+    val swipeUpThresholdPx = with(density) { SwipeUpThresholdDp.toPx() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -494,13 +497,32 @@ private fun MoreControlsAffordance(
             )
             // Upward swipe on the affordance also opens the sheet, so the
             // gesture lives here rather than on the navigation ring.
-            .pointerInput(enabled) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    if (dragAmount < -SwipeUpThresholdPx) {
-                        change.consume()
-                        onClick()
+            .pointerInput(enabled, swipeUpThresholdPx) {
+                if (!enabled) return@pointerInput
+                var totalDrag = 0f
+                var triggered = false
+                detectVerticalDragGestures(
+                    onDragStart = {
+                        totalDrag = 0f
+                        triggered = false
+                    },
+                    onDragEnd = {
+                        totalDrag = 0f
+                        triggered = false
+                    },
+                    onDragCancel = {
+                        totalDrag = 0f
+                        triggered = false
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        totalDrag += dragAmount
+                        if (!triggered && totalDrag < -swipeUpThresholdPx) {
+                            triggered = true
+                            change.consume()
+                            onClick()
+                        }
                     }
-                }
+                )
             }
     ) {
         Box(
@@ -526,7 +548,7 @@ private fun MoreControlsAffordance(
     }
 }
 
-private const val SwipeUpThresholdPx = 40f
+private val SwipeUpThresholdDp = 24.dp
 
 /**
  * The mockup's +/− volume controls flanking the ring's right edge.
