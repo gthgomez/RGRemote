@@ -365,16 +365,15 @@ internal fun NeoPanel(
     accent: Color,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
+    val halo = com.rgremote.app.ui.theme.LocalHaloColors.current
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = NeoSurface.copy(alpha = 0.9f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.22f))
+        shape = RoundedCornerShape(20.dp),
+        color = halo.chipFill,
+        border = BorderStroke(0.5.dp, halo.chipBorder)
     ) {
         Column(
-            modifier = Modifier
-                .cyberEtch(accent, alpha = 0.08f)
-                .padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
             content = content
         )
