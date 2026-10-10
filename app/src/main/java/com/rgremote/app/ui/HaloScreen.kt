@@ -49,6 +49,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -484,6 +485,8 @@ private fun MoreControlsAffordance(
 ) {
     val halo = LocalHaloColors.current
     val ringBrush = rememberRingBrush()
+    val density = LocalDensity.current
+    val swipeUpThresholdPx = with(density) { SwipeUpThresholdDp.toPx() }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -494,7 +497,7 @@ private fun MoreControlsAffordance(
             )
             // Upward swipe on the affordance also opens the sheet, so the
             // gesture lives here rather than on the navigation ring.
-            .pointerInput(enabled) {
+            .pointerInput(enabled, swipeUpThresholdPx) {
                 if (!enabled) return@pointerInput
                 var totalDrag = 0f
                 var triggered = false
@@ -513,7 +516,7 @@ private fun MoreControlsAffordance(
                     },
                     onVerticalDrag = { change, dragAmount ->
                         totalDrag += dragAmount
-                        if (!triggered && totalDrag < -SwipeUpThresholdPx) {
+                        if (!triggered && totalDrag < -swipeUpThresholdPx) {
                             triggered = true
                             change.consume()
                             onClick()
@@ -545,7 +548,7 @@ private fun MoreControlsAffordance(
     }
 }
 
-private const val SwipeUpThresholdPx = 40f
+private val SwipeUpThresholdDp = 24.dp
 
 /**
  * The mockup's +/− volume controls flanking the ring's right edge.

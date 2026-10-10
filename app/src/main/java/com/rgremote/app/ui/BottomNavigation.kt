@@ -108,7 +108,6 @@ import com.rgremote.app.ui.theme.rememberRingBrush
 @Composable
 internal fun NeoBottomNavigation(
     selectedTab: RemoteTab,
-    accent: Color,
     onSelectTab: (RemoteTab) -> Unit
 ) {
     val halo = LocalHaloColors.current

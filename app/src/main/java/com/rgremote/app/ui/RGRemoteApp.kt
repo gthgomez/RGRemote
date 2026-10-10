@@ -302,7 +302,6 @@ private fun RGRemoteScreen(
                 if (state.selectedTab != RemoteTab.REMOTE) {
                     NeoBottomNavigation(
                         selectedTab = state.selectedTab,
-                        accent = accent,
                         onSelectTab = onSelectTab
                     )
                 }
