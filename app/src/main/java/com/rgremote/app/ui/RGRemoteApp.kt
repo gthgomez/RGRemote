@@ -289,8 +289,9 @@ private fun RGRemoteScreen(
         }
     }
 
+    val halo = LocalHaloColors.current
     Scaffold(
-        containerColor = NeoBackground,
+        containerColor = halo.backgroundBase,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             // Halo contract: no bottom navigation on the default remote screen;
@@ -309,15 +310,9 @@ private fun RGRemoteScreen(
         }
     ) { padding ->
         BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(NeoBackgroundDeep, NeoBackground, NeoBackgroundLow)
-                    )
-                )
-                .circuitBoardBackground(accent)
+            modifier = Modifier.fillMaxSize()
         ) {
+            HaloBackdrop()
             val viewportHeight = maxHeight
             val heroLayout = viewportHeight >= 800.dp && maxWidth >= 380.dp
             val horizontalPadding = if (heroLayout) 10.dp else 8.dp
@@ -974,6 +969,8 @@ private fun AppsPanel(
     onRemovePinnedApp: (AppLaunchTarget) -> Unit
 ) {
     val activePins = state.pinnedApps.filter { it.deviceType == ecosystem.type }
+    val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     NeoPanel(accent = accent) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -983,9 +980,8 @@ private fun AppsPanel(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = if (ecosystem.type == DeviceType.ROKU_TV) stringResource(R.string.apps_roku_title) else stringResource(R.string.apps_google_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = PrimaryText,
-                        fontWeight = FontWeight.Black
+                        style = MaterialTheme.typography.titleMedium.copy(brush = ringBrush),
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = if (ecosystem.type == DeviceType.ROKU_TV) {
@@ -994,14 +990,20 @@ private fun AppsPanel(
                             stringResource(R.string.apps_google_subtitle)
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = SecondaryText
+                        color = halo.moreControls
                     )
                 }
                 if (ecosystem.type == DeviceType.ROKU_TV) {
                     Button(
                         enabled = !state.isLoadingApps,
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = halo.dockWell,
+                            contentColor = halo.ringAccent,
+                            disabledContainerColor = halo.dockWell.copy(alpha = 0.4f),
+                            disabledContentColor = halo.moreControls.copy(alpha = 0.5f)
+                        ),
+                        border = BorderStroke(0.5.dp, halo.dockBorder),
                         contentPadding = PaddingValues(horizontal = 12.dp),
                         onClick = onRefreshRokuChannels
                     ) {
@@ -1011,8 +1013,12 @@ private fun AppsPanel(
                     }
                 } else {
                     Button(
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Color.White),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = halo.dockWell,
+                            contentColor = halo.ringAccent
+                        ),
+                        border = BorderStroke(0.5.dp, halo.dockBorder),
                         contentPadding = PaddingValues(horizontal = 12.dp),
                         onClick = onAddGoogleTvApp
                     ) {
@@ -1065,16 +1071,17 @@ private fun AppsPanel(
 
 @Composable
 private fun EmptyAppsHint(text: String, accent: Color) {
+    val halo = LocalHaloColors.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = NeoCard.copy(alpha = 0.72f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.18f))
+        shape = RoundedCornerShape(16.dp),
+        color = halo.dockWell.copy(alpha = 0.5f),
+        border = BorderStroke(0.5.dp, halo.dockBorder)
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(16.dp),
-            color = SecondaryText,
+            color = halo.moreControls,
             style = MaterialTheme.typography.bodyMedium
         )
     }
@@ -1121,14 +1128,15 @@ private fun AppLaunchCard(
     onEdit: (AppLaunchTarget) -> Unit,
     onRemove: (AppLaunchTarget) -> Unit
 ) {
+    val halo = LocalHaloColors.current
     Surface(
         modifier = modifier
             .height(108.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable { onLaunch(app) },
-        shape = RoundedCornerShape(20.dp),
-        color = NeoCard.copy(alpha = 0.86f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f))
+        shape = RoundedCornerShape(18.dp),
+        color = halo.dockWell,
+        border = BorderStroke(0.5.dp, halo.dockBorder)
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -1141,27 +1149,27 @@ private fun AppLaunchCard(
             ) {
                 Text(
                     text = app.displayName,
-                    color = PrimaryText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
                 Row {
                     if (canEdit) {
-                        IconButton(modifier = Modifier.size(48.dp), onClick = { onEdit(app) }) {
-                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.apps_cd_edit_app), tint = SecondaryText, modifier = Modifier.size(18.dp))
+                        IconButton(modifier = Modifier.size(36.dp), onClick = { onEdit(app) }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.apps_cd_edit_app), tint = halo.moreControls, modifier = Modifier.size(16.dp))
                         }
                     }
-                    IconButton(modifier = Modifier.size(48.dp), onClick = { onRemove(app) }) {
-                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.apps_cd_remove_app), tint = DangerRed, modifier = Modifier.size(18.dp))
+                    IconButton(modifier = Modifier.size(36.dp), onClick = { onRemove(app) }) {
+                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.apps_cd_remove_app), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                     }
                 }
             }
             Text(
                 text = app.launchValue,
-                color = SecondaryText.copy(alpha = 0.78f),
+                color = halo.moreControls,
                 style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1180,6 +1188,7 @@ private fun RokuChannelPicker(
     onPin: (RokuApp) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+    val halo = LocalHaloColors.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1189,11 +1198,14 @@ private fun RokuChannelPicker(
             Text(
                 text = stringResource(R.string.channels_available),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = PrimaryText
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
             TextButton(enabled = !isLoading, onClick = onRefresh) {
-                Text(if (isLoading) stringResource(R.string.channels_refreshing) else stringResource(R.string.channels_refresh))
+                Text(
+                    if (isLoading) stringResource(R.string.channels_refreshing) else stringResource(R.string.channels_refresh),
+                    color = halo.ringAccent
+                )
             }
         }
         if (apps.isEmpty()) {
@@ -1205,9 +1217,9 @@ private fun RokuChannelPicker(
                 onValueChange = { query = it },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
-                placeholder = { Text(stringResource(R.string.channels_search_hint)) },
+                placeholder = { Text(stringResource(R.string.channels_search_hint), color = halo.moreControls) },
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, tint = SecondaryText)
+                    Icon(Icons.Default.Search, contentDescription = null, tint = halo.moreControls)
                 }
             )
             val filtered = apps.filter { it.name.contains(query.trim(), ignoreCase = true) }
@@ -1230,11 +1242,12 @@ private fun RokuChannelRow(
     accent: Color,
     onPin: (RokuApp) -> Unit
 ) {
+    val halo = LocalHaloColors.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = NeoInnerCard,
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f))
+        shape = RoundedCornerShape(14.dp),
+        color = halo.dockWell,
+        border = BorderStroke(0.5.dp, halo.dockBorder)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -1244,14 +1257,14 @@ private fun RokuChannelRow(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     text = app.name,
-                    color = PrimaryText,
-                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = stringResource(R.string.channels_roku_id, app.id),
-                    color = SecondaryText,
+                    color = halo.moreControls,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -1259,13 +1272,14 @@ private fun RokuChannelRow(
             }
             Button(
                 enabled = !pinned,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (pinned) NeoCard else accent,
-                    contentColor = Color.White,
-                    disabledContainerColor = NeoCard,
-                    disabledContentColor = SecondaryText
+                    containerColor = halo.dockWell,
+                    contentColor = halo.ringAccent,
+                    disabledContainerColor = halo.dockWell.copy(alpha = 0.4f),
+                    disabledContentColor = halo.moreControls.copy(alpha = 0.5f)
                 ),
+                border = BorderStroke(0.5.dp, if (!pinned) halo.dockBorder else halo.dockBorder.copy(alpha = 0.2f)),
                 contentPadding = PaddingValues(horizontal = 12.dp),
                 onClick = { onPin(app) }
             ) {
@@ -1295,8 +1309,13 @@ private fun SettingsPanel(
     onRemoveSavedDevice: (String) -> Unit,
     onDedupeSavedDevices: () -> Unit,
 ) {
+    val ringBrush = rememberRingBrush()
     NeoPanel(accent = accent) {
-            Text(stringResource(R.string.settings_title), color = PrimaryText, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = stringResource(R.string.settings_title),
+                style = MaterialTheme.typography.titleMedium.copy(brush = ringBrush),
+                fontWeight = FontWeight.SemiBold
+            )
             SettingsSection(
                 title = stringResource(R.string.settings_devices_title),
                 body = stringResource(R.string.settings_devices_body),
@@ -1557,14 +1576,15 @@ private fun SavedDeviceRow(
     accent: Color,
     onRemove: () -> Unit,
 ) {
+    val halo = LocalHaloColors.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = NeoCard.copy(alpha = 0.5f),
-        border = BorderStroke(1.dp, GlassStroke)
+        shape = RoundedCornerShape(14.dp),
+        color = halo.dockWell,
+        border = BorderStroke(0.5.dp, halo.dockBorder)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -1573,18 +1593,18 @@ private fun SavedDeviceRow(
                     text = device.friendlyName,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = PrimaryText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${device.ipAddress}:${device.port}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = SecondaryText
+                    color = halo.moreControls
                 )
             }
             TextButton(onClick = onRemove) {
-                Text(stringResource(R.string.common_remove), color = DangerRed)
+                Text(stringResource(R.string.common_remove), color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -1597,15 +1617,21 @@ private fun SettingsSection(
     accent: Color,
     content: @Composable () -> Unit
 ) {
+    val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = NeoCard.copy(alpha = 0.68f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.16f))
+        shape = RoundedCornerShape(16.dp),
+        color = halo.dockWell.copy(alpha = 0.6f),
+        border = BorderStroke(0.5.dp, halo.dockBorder)
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, color = PrimaryText, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-            Text(body, color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(brush = ringBrush),
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(body, color = halo.moreControls, style = MaterialTheme.typography.bodySmall)
             content()
         }
     }
@@ -1620,17 +1646,18 @@ private fun SettingsActionButton(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
+    val halo = LocalHaloColors.current
     Button(
         modifier = modifier.height(48.dp),
         enabled = enabled,
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = accent,
-            contentColor = Color.White,
-            disabledContainerColor = NeoSurface,
-            disabledContentColor = SecondaryText.copy(alpha = 0.52f)
+            containerColor = halo.dockWell,
+            contentColor = halo.ringAccent,
+            disabledContainerColor = halo.dockWell.copy(alpha = 0.35f),
+            disabledContentColor = halo.moreControls.copy(alpha = 0.4f)
         ),
-        border = BorderStroke(1.dp, accent.copy(alpha = if (enabled) 0.78f else 0.18f)),
+        border = BorderStroke(0.5.dp, if (enabled) halo.dockBorder else halo.dockBorder.copy(alpha = 0.2f)),
         contentPadding = PaddingValues(horizontal = 10.dp),
         onClick = onClick
     ) {
@@ -1680,13 +1707,16 @@ private fun ManualDeviceDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    val halo = LocalHaloColors.current
                     listOf(DeviceType.ROKU_TV to stringResource(R.string.ecosystem_roku), DeviceType.GOOGLE_TV to stringResource(R.string.ecosystem_google_tv)).forEach { (candidate, label) ->
                         Button(
                             modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (type == candidate) RokuPrimary else NeoCard,
-                                contentColor = if (type == candidate) Color.White else SecondaryText
+                                containerColor = if (type == candidate) halo.ringBottom else halo.dockWell,
+                                contentColor = if (type == candidate) Color.White else halo.moreControls
                             ),
+                            border = BorderStroke(0.5.dp, halo.dockBorder),
                             onClick = { selectedType = candidate.name }
                         ) {
                             Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1861,14 +1891,17 @@ private fun GoogleTvSetupDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = SecondaryText
                 )
+                val halo = LocalHaloColors.current
                 listOf(HdmiPort.HDMI1, HdmiPort.HDMI2, HdmiPort.HDMI3, HdmiPort.HDMI4).forEach { port ->
                     val selected = google.hdmiPortMapping == port
                     Button(
                         modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selected) GooglePrimary else NeoCard,
-                            contentColor = if (selected) Color.White else SecondaryText
+                            containerColor = if (selected) halo.ringBottom else halo.dockWell,
+                            contentColor = if (selected) Color.White else halo.moreControls
                         ),
+                        border = BorderStroke(0.5.dp, halo.dockBorder),
                         onClick = { onSetMapping(port) }
                     ) {
                         Text(if (selected) stringResource(R.string.gtsetup_port_selected, port.displayName) else port.displayName)

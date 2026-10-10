@@ -102,34 +102,49 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
 import com.rgremote.app.domain.VolumeCommand
 
+import com.rgremote.app.ui.theme.LocalHaloColors
+import com.rgremote.app.ui.theme.rememberRingBrush
+
 @Composable
 internal fun NeoBottomNavigation(
     selectedTab: RemoteTab,
     accent: Color,
     onSelectTab: (RemoteTab) -> Unit
 ) {
+    val halo = LocalHaloColors.current
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        color = NeoBottomBar,
-        border = BorderStroke(1.dp, GlassStroke)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = halo.dockFill,
+        border = BorderStroke(1.dp, halo.dockBorder)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BottomNavItem(Icons.Default.Tv, stringResource(R.string.nav_remote), selected = selectedTab == RemoteTab.REMOTE, accent = accent) {
-                onSelectTab(RemoteTab.REMOTE)
-            }
-            BottomNavItem(Icons.Default.Apps, stringResource(R.string.nav_apps), selected = selectedTab == RemoteTab.APPS, accent = accent) {
-                onSelectTab(RemoteTab.APPS)
-            }
-            BottomNavItem(Icons.Default.Settings, stringResource(R.string.nav_settings), selected = selectedTab == RemoteTab.SETTINGS, accent = accent) {
-                onSelectTab(RemoteTab.SETTINGS)
-            }
+            BottomNavItem(
+                icon = Icons.Default.Tv,
+                label = stringResource(R.string.nav_remote),
+                selected = selectedTab == RemoteTab.REMOTE,
+                onClick = { onSelectTab(RemoteTab.REMOTE) }
+            )
+            BottomNavItem(
+                icon = Icons.Default.Apps,
+                label = stringResource(R.string.nav_apps),
+                selected = selectedTab == RemoteTab.APPS,
+                onClick = { onSelectTab(RemoteTab.APPS) }
+            )
+            BottomNavItem(
+                icon = Icons.Default.Settings,
+                label = stringResource(R.string.nav_settings),
+                selected = selectedTab == RemoteTab.SETTINGS,
+                onClick = { onSelectTab(RemoteTab.SETTINGS) }
+            )
         }
     }
 }
@@ -139,41 +154,48 @@ internal fun BottomNavItem(
     icon: ImageVector,
     label: String,
     selected: Boolean,
-    accent: Color,
     onClick: () -> Unit
 ) {
+    val halo = LocalHaloColors.current
+    val ringBrush = rememberRingBrush()
     Column(
         modifier = Modifier
-            .width(82.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .width(84.dp)
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 1.dp),
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (selected) accent.copy(alpha = 0.12f) else Color.Transparent),
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(if (selected) halo.dockWell else Color.Transparent)
+                .border(
+                    width = 0.5.dp,
+                    color = if (selected) halo.dockBorder else Color.Transparent,
+                    shape = CircleShape
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = label, tint = if (selected) accent else SecondaryText, modifier = Modifier.size(22.dp))
+            Icon(
+                icon,
+                contentDescription = label,
+                tint = if (selected) halo.ringAccent else halo.dockIcon.copy(alpha = 0.6f),
+                modifier = Modifier.size(20.dp)
+            )
         }
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (selected) accent else SecondaryText,
+            style = if (selected) {
+                MaterialTheme.typography.labelSmall.copy(brush = ringBrush)
+            } else {
+                MaterialTheme.typography.labelSmall.copy(color = halo.moreControls)
+            },
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
-        )
-        Box(
-            Modifier
-                .width(if (selected) 44.dp else 0.dp)
-                .height(3.dp)
-                .clip(CircleShape)
-                .background(accent)
-                .neoGlow(accent, if (selected) 0.45f else 0f, radius = 8.dp)
         )
     }
 }
