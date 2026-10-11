@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -129,6 +130,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+import com.rgremote.app.ui.theme.LocalHaloColors
+import com.rgremote.app.ui.theme.ringGradientColors
 import com.rgremote.app.ui.theme.LocalRgColors
 import com.rgremote.app.ui.theme.RgBackground
 import com.rgremote.app.ui.theme.RgBackgroundDeep
@@ -365,7 +368,7 @@ internal fun NeoPanel(
     accent: Color,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    val halo = com.rgremote.app.ui.theme.LocalHaloColors.current
+    val halo = LocalHaloColors.current
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -458,6 +461,91 @@ internal fun RoundIconButton(
             },
             modifier = Modifier.size(size * 0.48f)
         )
+    }
+}
+
+/**
+ * Glass pill action button matching the halo dock language: translucent well
+ * fill, hairline accent border, ring-gradient icon glyph. Used across the
+ * Apps and Settings panels so every tab speaks the same visual dialect.
+ * Pass [gradientIcon] = false for danger/semantic buttons whose accent must
+ * not be overridden by the ring gradient.
+ */
+@Composable
+internal fun GlassPillButton(
+    label: String,
+    icon: ImageVector?,
+    accent: Color,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    gradientIcon: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val halo = LocalHaloColors.current
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, label = "glassPillPress")
+    Surface(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .scale(scale)
+            .clip(RoundedCornerShape(50)),
+        shape = RoundedCornerShape(50),
+        color = Color.Transparent,
+        onClick = onClick,
+        enabled = enabled,
+        interactionSource = interaction
+    ) {
+        Row(
+            modifier = Modifier
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = if (enabled) 0.10f else 0.04f),
+                            accent.copy(alpha = if (enabled) 0.14f else 0.04f),
+                            NeoCard.copy(alpha = 0.86f)
+                        )
+                    )
+                )
+                .border(
+                    1.25.dp,
+                    accent.copy(alpha = if (enabled) 0.46f else 0.14f),
+                    RoundedCornerShape(50)
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                if (gradientIcon && enabled) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(18.dp)
+                            .ringGradientFill(halo.ringGradientColors())
+                    )
+                } else {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = if (enabled) accent else SecondaryText.copy(alpha = 0.52f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                text = label,
+                color = if (enabled) PrimaryText else SecondaryText.copy(alpha = 0.52f),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
