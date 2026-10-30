@@ -14,6 +14,33 @@ RGRemote was built and tested against a TCL Roku TV and an Onn Google TV box,
 but it speaks standard protocols (Roku ECP and the Android TV Remote Protocol
 v2), so other Roku TVs and Android/Google TV devices should work.
 
+## Showcase — A phone remote for your home TV
+
+Navigate a Roku TV from the phone, open apps and switch mapped inputs; an isolated experimental adapter also supports Google TV pairing and control. Roku is the stable lane; Google TV’s reverse-engineered protocol remains experimental.
+
+| Explore | What the app provides |
+| --- | --- |
+| Roku | SSDP discovery and local ECP control |
+| Google TV | mDNS discovery, PIN pairing, and TLS control |
+| Watch flow | Mapped HDMI handoff; visible panel input is only inferred |
+
+**Demo status:** runtime screenshots and video are pending. The README showcase pass
+on 2026-10-30 inspected source at [`d905c76d9bce`](https://github.com/gthgomez/RGRemote/tree/d905c76d9bce13ee344cf2286fe4041d0e980e8e);
+this cloud environment has no Android SDK, emulator, or attached Android device.
+The checked-in Halo images are **design references**, not runtime screenshots.
+No paired TV is available here, so end-to-end control is also hardware-blocked.
+See the [capture checklist and evidence limits](docs/showcase/README.md).
+
+### Try it locally
+
+JDK 17, Android SDK platform 36, an Android 8.0+ phone, and a Roku/Google TV device on the same LAN with multicast allowed. Hardware testing also requires the TV’s local-control setting and explicit pairing.
+
+From the repository root (Windows: `gradlew.bat`):
+
+```sh
+./gradlew :app:assembleDebug :app:testDebugUnitTest
+```
+
 ## Features
 
 - **Roku control (stable lane):** SSDP discovery, ECP commands on port 8060 —
