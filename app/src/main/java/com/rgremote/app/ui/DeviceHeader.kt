@@ -127,21 +127,16 @@ internal fun ActiveDeviceHeader(
     compact: Boolean = true,
 ) {
     val selected = state.selectedDevice
+    val halo = LocalHaloColors.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(if (compact) 18.dp else 22.dp),
-        color = NeoSurface.copy(alpha = if (compact) 0.72f else 0.78f),
-        border = BorderStroke(1.dp, accent.copy(alpha = 0.20f))
+        shape = RoundedCornerShape(18.dp),
+        color = halo.chipFill,
+        border = BorderStroke(0.5.dp, halo.chipBorder)
     ) {
         Column(
             modifier = Modifier
-                .background(
-                    Brush.linearGradient(
-                        listOf(accent.copy(alpha = 0.12f), NeoSurface.copy(alpha = 0.82f), Color(0xFF0D1220))
-                    )
-                )
-                .cyberEtch(accent, alpha = if (ecosystem.type == DeviceType.ROKU_TV) 0.12f else 0.06f)
-                .padding(horizontal = 10.dp, vertical = if (compact) 6.dp else 8.dp),
+                .padding(horizontal = 12.dp, vertical = if (compact) 8.dp else 10.dp),
             verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
         ) {
             Row(
