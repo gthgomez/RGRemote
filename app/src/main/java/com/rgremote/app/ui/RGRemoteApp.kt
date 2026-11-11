@@ -66,6 +66,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
@@ -73,6 +74,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -973,10 +975,13 @@ private fun AppsPanel(
     NeoPanel(accent = accent) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = if (ecosystem.type == DeviceType.ROKU_TV) stringResource(R.string.apps_roku_title) else stringResource(R.string.apps_google_title),
                         style = MaterialTheme.typography.titleMedium.copy(brush = ringBrush),
@@ -993,38 +998,21 @@ private fun AppsPanel(
                     )
                 }
                 if (ecosystem.type == DeviceType.ROKU_TV) {
-                    Button(
+                    GlassPillButton(
+                        label = if (state.isLoadingApps) stringResource(R.string.apps_refreshing) else stringResource(R.string.apps_refresh),
+                        icon = Icons.Default.Refresh,
+                        accent = accent,
                         enabled = !state.isLoadingApps,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = halo.dockWell,
-                            contentColor = halo.ringAccent,
-                            disabledContainerColor = halo.dockWell.copy(alpha = 0.4f),
-                            disabledContentColor = halo.moreControls.copy(alpha = 0.5f)
-                        ),
-                        border = BorderStroke(0.5.dp, halo.dockBorder),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
                         onClick = onRefreshRokuChannels
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (state.isLoadingApps) stringResource(R.string.apps_refreshing) else stringResource(R.string.apps_refresh))
-                    }
+                    )
                 } else {
-                    Button(
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = halo.dockWell,
-                            contentColor = halo.ringAccent
-                        ),
-                        border = BorderStroke(0.5.dp, halo.dockBorder),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
+                    GlassPillButton(
+                        label = stringResource(R.string.common_add),
+                        icon = Icons.Default.Add,
+                        accent = accent,
+                        enabled = true,
                         onClick = onAddGoogleTvApp
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.common_add))
-                    }
+                    )
                 }
             }
 
@@ -1198,14 +1186,16 @@ private fun RokuChannelPicker(
                 text = stringResource(R.string.channels_available),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
             )
-            TextButton(enabled = !isLoading, onClick = onRefresh) {
-                Text(
-                    if (isLoading) stringResource(R.string.channels_refreshing) else stringResource(R.string.channels_refresh),
-                    color = halo.ringAccent
-                )
-            }
+            GlassPillButton(
+                label = if (isLoading) stringResource(R.string.channels_refreshing) else stringResource(R.string.channels_refresh),
+                icon = Icons.Default.Refresh,
+                accent = accent,
+                enabled = !isLoading,
+                onClick = onRefresh
+            )
         }
         if (apps.isEmpty()) {
             EmptyAppsHint(text = stringResource(R.string.channels_empty_hint), accent = accent)
@@ -1215,11 +1205,20 @@ private fun RokuChannelPicker(
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(50),
                 placeholder = { Text(stringResource(R.string.channels_search_hint), color = halo.moreControls) },
                 leadingIcon = {
                     Icon(Icons.Default.Search, contentDescription = null, tint = halo.moreControls)
-                }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = NeoInnerCard.copy(alpha = 0.72f),
+                    unfocusedContainerColor = NeoInnerCard.copy(alpha = 0.5f),
+                    focusedBorderColor = accent.copy(alpha = 0.5f),
+                    unfocusedBorderColor = GlassStroke,
+                    cursorColor = accent,
+                    focusedTextColor = PrimaryText,
+                    unfocusedTextColor = PrimaryText
+                )
             )
             val filtered = apps.filter { it.name.contains(query.trim(), ignoreCase = true) }
             if (filtered.isEmpty()) {
@@ -1269,21 +1268,13 @@ private fun RokuChannelRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Button(
+            GlassPillButton(
+                label = if (pinned) stringResource(R.string.channels_pinned) else stringResource(R.string.channels_pin),
+                icon = if (pinned) Icons.Default.Check else null,
+                accent = accent,
                 enabled = !pinned,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = halo.dockWell,
-                    contentColor = halo.ringAccent,
-                    disabledContainerColor = halo.dockWell.copy(alpha = 0.4f),
-                    disabledContentColor = halo.moreControls.copy(alpha = 0.5f)
-                ),
-                border = BorderStroke(0.5.dp, if (!pinned) halo.dockBorder else halo.dockBorder.copy(alpha = 0.2f)),
-                contentPadding = PaddingValues(horizontal = 12.dp),
                 onClick = { onPin(app) }
-            ) {
-                Text(if (pinned) stringResource(R.string.channels_pinned) else stringResource(R.string.channels_pin))
-            }
+            )
         }
     }
 }
@@ -1527,7 +1518,14 @@ private fun PreferenceSwitchRow(
         )
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = accent,
+                uncheckedThumbColor = SecondaryText,
+                uncheckedTrackColor = NeoInnerCard,
+                uncheckedBorderColor = GlassStroke
+            )
         )
     }
 }
@@ -1541,24 +1539,31 @@ private fun StartupChoiceRow(
     accent: Color,
     onSelect: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onSelect),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = NeoInnerCard.copy(alpha = 0.55f),
+        border = BorderStroke(1.dp, if (selected) accent.copy(alpha = 0.42f) else GlassStroke)
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = PrimaryText,
-            modifier = Modifier.weight(1f)
-        )
-        RadioButton(
-            selected = selected,
-            onClick = null,
-            colors = RadioButtonDefaults.colors(selectedColor = accent, unselectedColor = SecondaryText)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onSelect)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = PrimaryText,
+                modifier = Modifier.weight(1f)
+            )
+            RadioButton(
+                selected = selected,
+                onClick = null,
+                colors = RadioButtonDefaults.colors(selectedColor = accent, unselectedColor = SecondaryText)
+            )
+        }
     }
 }
 
@@ -1645,31 +1650,18 @@ private fun SettingsActionButton(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    val halo = LocalHaloColors.current
-    Button(
-        modifier = modifier.height(48.dp),
+    // Danger accents keep their own color; the ring gradient only fills
+    // ecosystem-accented glyphs.
+    GlassPillButton(
+        label = label,
+        icon = icon,
+        accent = accent,
         enabled = enabled,
-        shape = RoundedCornerShape(16.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = halo.dockWell,
-            contentColor = halo.ringAccent,
-            disabledContainerColor = halo.dockWell.copy(alpha = 0.35f),
-            disabledContentColor = halo.moreControls.copy(alpha = 0.4f)
-        ),
-        border = BorderStroke(0.5.dp, if (enabled) halo.dockBorder else halo.dockBorder.copy(alpha = 0.2f)),
-        contentPadding = PaddingValues(horizontal = 10.dp),
+        modifier = modifier,
+        gradientIcon = accent != DangerRed,
         onClick = onClick
-    ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    )
 }
-
-
-
-
-
 
 
 
