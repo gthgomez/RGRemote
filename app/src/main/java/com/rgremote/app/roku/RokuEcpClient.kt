@@ -16,6 +16,7 @@ import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.URL
 import java.net.URLEncoder
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -26,6 +27,9 @@ class RokuNetworkAccessException(
 ) : IOException(
     "Roku refused /$path with HTTP $code. Set Settings > System > Advanced system settings > Control by mobile apps > Network access to Enabled."
 )
+
+internal class RokuHttpStatusException(path: String, val code: Int, method: String) :
+    IOException("Roku $method /$path failed with HTTP $code")
 
 /**
  * ECP literal-text key for a character, or null when it cannot be typed:
@@ -45,7 +49,7 @@ class RokuEcpClient(
     private val wakeTimeoutMillis: Int = WAKE_TIMEOUT_MILLIS,
 ) : RemoteAdapter, RokuEcpGateway {
     override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> =
-        runCatching {
+        try {
             when (command) {
                 is RemoteCommand.Dpad -> post(device, "keypress/${command.direction.rokuKey()}")
                 RemoteCommand.Select -> post(device, "keypress/Select")
@@ -78,6 +82,11 @@ class RokuEcpClient(
                 is RemoteCommand.LaunchApp -> post(device, RokuLaunchTarget.parse(command.appIdOrUri).path)
                 is RemoteCommand.SetInput -> post(device, "keypress/${command.port.rokuKey}")
             }
+            Result.success(Unit)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            Result.failure(error)
         }
 
     private fun sendWakeOnLan(macAddress: String, deviceIp: String?) {
@@ -200,7 +209,7 @@ class RokuEcpClient(
         if (code == HttpURLConnection.HTTP_FORBIDDEN) {
             RokuNetworkAccessException(path, code)
         } else {
-            IOException("Roku $method /$path failed with HTTP $code")
+            RokuHttpStatusException(path, code, method)
         }
 }
 

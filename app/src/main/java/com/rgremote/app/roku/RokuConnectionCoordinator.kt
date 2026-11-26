@@ -8,6 +8,7 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
 import com.rgremote.app.domain.RokuDeviceInfo
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 class RokuConnectionCoordinator(
@@ -43,7 +44,7 @@ class RokuConnectionCoordinator(
             promoteToSerialIdentity(target, probe.getOrThrow())
             return probe
         }
-        if (!probe.exceptionOrNull().isRecoverableByRescan()) return probe
+        if (probe.exceptionOrNull()?.isRetryable() != true) return probe
 
         val rescanned = rescanAndResolve(target) ?: return probe
         val recovered = retryEcp(maxAttempts = RECOVERY_PROBE_ATTEMPTS) {
@@ -66,7 +67,7 @@ class RokuConnectionCoordinator(
             rokuAdapter.queryApps(target)
         }
         if (query.isSuccess) return query
-        if (!query.exceptionOrNull().isRecoverableByRescan()) return query
+        if (query.exceptionOrNull()?.isRetryable() != true) return query
 
         val rescanned = rescanAndResolve(target) ?: return query
         return retryEcp(maxAttempts = RECOVERY_PROBE_ATTEMPTS) {
@@ -78,17 +79,16 @@ class RokuConnectionCoordinator(
         device: RegisteredDevice,
         command: RemoteCommand,
     ): Result<Unit> {
-        var target = resolveDevice(device)
-        var result = retrySend(target, command, maxAttempts = sendAttemptsFor(command))
+        val target = resolveDevice(device)
+        val result = retrySend(target, command, maxAttempts = sendAttemptsFor(command))
         if (result.isSuccess) return result
-        if (!result.exceptionOrNull().isRecoverableByRescan()) return result
+        if (result.exceptionOrNull()?.isRetryable() != true) return result
 
         // Connection recovery (rescan + registry refresh) is allowed for every command;
         // only the command POST itself must stay single-shot for non-idempotent ones.
         val rescanned = rescanAndResolve(target) ?: return result
-        target = rescanned
         if (!command.isRetrySafe()) return result
-        return retrySend(target, command, maxAttempts = RECOVERY_SEND_ATTEMPTS)
+        return retrySend(rescanned, command, maxAttempts = RECOVERY_SEND_ATTEMPTS)
     }
 
     /**
@@ -117,7 +117,13 @@ class RokuConnectionCoordinator(
         if (command.isRetrySafe()) DEFAULT_SEND_ATTEMPTS else SINGLE_SEND_ATTEMPT
 
     private suspend fun rescanAndResolve(device: RegisteredDevice): RegisteredDevice? {
-        runCatching { rescan() }
+        try {
+            rescan()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // The passive listener may already have updated the device address.
+        }
         return lookup(device.id)
     }
 
@@ -129,7 +135,9 @@ class RokuConnectionCoordinator(
         var last: Result<Unit> = Result.failure(IOException("Roku command not attempted"))
         repeat(maxAttempts) { attempt ->
             last = rokuAdapter.send(device, command)
-            if (last.isSuccess) return last
+            val error = last.exceptionOrNull() ?: return last
+            if (error is CancellationException) throw error
+            if (!error.isRetryable()) return last
             if (attempt < maxAttempts - 1) {
                 delay(retryDelaysMillis.getOrElse(attempt) { 500L })
             }
@@ -143,20 +151,24 @@ class RokuConnectionCoordinator(
     ): Result<T> {
         var lastError: Throwable? = null
         repeat(maxAttempts) { attempt ->
-            runCatching { block() }
-                .onSuccess { return Result.success(it) }
-                .onFailure { error ->
-                    lastError = error
-                    if (attempt < maxAttempts - 1) {
-                        delay(retryDelaysMillis.getOrElse(attempt) { 500L })
-                    }
-                }
+            try {
+                return Result.success(block())
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (!error.isRetryable()) return Result.failure(error)
+                lastError = error
+            }
+            if (attempt < maxAttempts - 1) {
+                delay(retryDelaysMillis.getOrElse(attempt) { 500L })
+            }
         }
         return Result.failure(lastError ?: IOException("Roku ECP request failed"))
     }
 
-    private fun Throwable?.isRecoverableByRescan(): Boolean =
-        this != null && this !is RokuNetworkAccessException
+    private fun Throwable.isRetryable(): Boolean =
+        this is IOException && this !is RokuNetworkAccessException &&
+            !(this is RokuHttpStatusException && code in 400..499)
 
     companion object {
         private val DEFAULT_RETRY_DELAYS = listOf(200L, 500L)

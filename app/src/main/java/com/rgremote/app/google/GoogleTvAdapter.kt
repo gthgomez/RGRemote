@@ -51,9 +51,8 @@ class GoogleTvAdapter(
      * Sends [command] through the persistent TLS session, creating or replacing the session
      * as needed. Must always be called while holding [sessionMutex].
      *
-     * Recovery path: if the cached socket reports closed or throws [IOException] (server
-     * half-closed, network change, TV went to sleep), the socket is discarded and a fresh
-     * handshake runs inline before the command is retried — the caller sees no failure.
+     * If the cached connection fails before sending, a fresh handshake runs inline.
+     * Errors during or after delivery reach the caller without a second send.
      */
     private fun sendWithSessionCache(
         device: RegisteredDevice,
@@ -63,19 +62,21 @@ class GoogleTvAdapter(
     ) {
         val existing = cachedSession
         if (existing != null) {
-            val stale = existing.deviceId != device.id || existing.socket.isClosed || existing.isIdleExpired()
-            if (!stale) {
+            val stale = !existing.matches(device) || existing.socket.isClosed || existing.isIdleExpired()
+            val failure = if (!stale) {
                 try {
                     existing.session.send(command)
                     existing.touch()
                     return
-                } catch (_: IOException) {
-                    // Session went dead mid-use (server closed, network hiccup, TV slept).
-                    // Close quietly and fall through to reconnect below.
+                } catch (error: IOException) {
+                    error
                 }
+            } else {
+                null
             }
             existing.closeQuietly()
             cachedSession = null
+            if (failure != null && failure !is GoogleTvRemoteSessionUnavailableException) throw failure
         }
 
         // No usable cached session — open a fresh persistent TLS connection.
@@ -97,7 +98,7 @@ class GoogleTvAdapter(
                 drainTimeoutMillis = TLS_DRAIN_TIMEOUT_MILLIS,
             )
             val session = GoogleTvRemoteV2Session(transport)
-            val fresh = CachedSession(device.id, socket, session)
+            val fresh = CachedSession(device, socket, session)
             session.send(command)   // negotiate + send; only cache on success
             fresh.touch()
             cachedSession = fresh
@@ -119,7 +120,7 @@ class GoogleTvAdapter(
         // Capture the session that was current at invocation time to prevent
         // closing a session created after this call (e.g., by a racing send()).
         val target = cachedSession ?: return
-        if (deviceId != null && target.deviceId != deviceId) return
+        if (deviceId != null && target.device.id != deviceId) return
         adapterScope.launch {
             sessionMutex.withLock {
                 // Re-check under the mutex: only close if the reference
@@ -175,11 +176,14 @@ class GoogleTvAdapter(
     }
 
     private class CachedSession(
-        val deviceId: String,
+        val device: RegisteredDevice,
         val socket: SSLSocket,
         val session: GoogleTvRemoteV2Session,
     ) {
         private var lastUsedMillis: Long = System.currentTimeMillis()
+
+        fun matches(target: RegisteredDevice): Boolean =
+            device.id == target.id && device.ipAddress == target.ipAddress && device.port == target.port
 
         /** Updates the last-used timestamp so the idle timer resets on each command. */
         fun touch() {

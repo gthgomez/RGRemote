@@ -10,12 +10,15 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.MulticastSocket
 import java.net.NetworkInterface
+import java.net.SocketTimeoutException
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -27,10 +30,7 @@ import kotlinx.coroutines.withContext
  * multicast UDP packets to this socket, and it is held for the entire lifetime of
  * the active listening session. Releasing it after the first discovery pass lets
  * the WiFi chip resume multicast filtering, which silently drops subsequent SSDP
- * announcements. The lock is released exactly once in [cleanup], alongside socket
- * teardown, whenever the session ends: an explicit [stop], a listener failure, or
- * job cancellation. Callers can observe liveness via [isRunning]; a dead or failed
- * session never blocks a subsequent [start].
+ * announcements. Each session releases its own lock and socket when it exits.
  *
  * ### Early byte-scan filter
  * Before allocating a [String] and parsing header fields, each UDP packet is scanned
@@ -43,40 +43,33 @@ class RokuSsdpListener(
     private val onDeviceDiscovered: (RegisteredDevice) -> Unit
 ) {
     private val appContext = context.applicationContext
-    private var job: Job? = null
-    private var socket: MulticastSocket? = null
-    private var multicastLock: WifiManager.MulticastLock? = null
+    @Volatile private var session: Session? = null
 
-    /** True only while a live listening job holds the socket and multicast lock. */
+    /** True while a listening job is starting or receiving packets. */
     val isRunning: Boolean
-        get() = job?.isActive == true
+        get() = session?.job?.isActive == true
 
+    @Synchronized
     fun start(scope: CoroutineScope) {
-        val current = job
-        if (current != null && current.isActive) return // Already running
-
-        // Dead, cancelled, or failed session: reap it so a fresh one can start.
-        current?.cancel()
-        job = null
-
-        job = scope.launch(Dispatchers.IO) {
+        if (isRunning) return
+        session?.stop()
+        val listening = Session()
+        listening.job = scope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+            var socket: MulticastSocket? = null
+            var multicastLock: WifiManager.MulticastLock? = null
             try {
                 val wifi = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
                 multicastLock = wifi?.createMulticastLock("RGRemote:RokuSsdpListener")?.apply {
                     setReferenceCounted(false)
-                    acquire()
                 }
+                multicastLock?.acquire()
 
                 val group = InetAddress.getByName("239.255.255.250")
-                val mSocket = MulticastSocket(null)
-                try {
-                    mSocket.reuseAddress = true
-                    mSocket.bind(InetSocketAddress(1900))
-                } catch (e: Exception) {
-                    runCatching { mSocket.close() }
-                    throw e
-                }
-                socket = mSocket
+                val mSocket = MulticastSocket(null).also { socket = it }
+                if (!listening.attachSocket(mSocket)) return@launch
+                mSocket.reuseAddress = true
+                mSocket.bind(InetSocketAddress(1900))
+                mSocket.soTimeout = RECEIVE_TIMEOUT_MILLIS
 
                 val groupAddress = InetSocketAddress(group, 1900)
                 val netIf = NetworkInterface.getNetworkInterfaces()?.asSequence()?.firstOrNull { ni ->
@@ -86,11 +79,12 @@ class RokuSsdpListener(
 
                 val buffer = ByteArray(4096)
                 while (true) {
+                    currentCoroutineContext().ensureActive()
                     val packet = DatagramPacket(buffer, buffer.size)
                     try {
                         mSocket.receive(packet)
-                    } catch (e: Exception) {
-                        break // Socket closed or job cancelled
+                    } catch (_: SocketTimeoutException) {
+                        continue // Allow scope cancellation to stop an idle listener.
                     }
 
                     // ── Early byte-scan filter ──────────────────────────────────────────────
@@ -149,57 +143,44 @@ class RokuSsdpListener(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
                 Log.e(TAG, "Roku SSDP listener failed", e)
             } finally {
-                cleanup()
-                if (job == runCatching { currentCoroutineContext()[Job] }.getOrNull()) {
-                    job = null
-                }
+                socket?.close()
+                if (multicastLock?.isHeld == true) multicastLock.release()
             }
         }
+        session = listening
+        listening.job.start()
     }
 
+    @Synchronized
     fun stop() {
-        job?.cancel()
-        job = null
-        cleanup()
+        session?.stop()
+        session = null
     }
 
-    /**
-     * Tears down the current session. Fields are taken-and-nulled before teardown so a
-     * restarted session's new socket/lock can never be closed by a dying previous one,
-     * and the lock release happens exactly once even across concurrent exit paths.
-     */
-    private fun cleanup() {
-        val s = socket
-        socket = null
-        try {
-            if (s != null) {
-                val group = InetAddress.getByName("239.255.255.250")
-                val groupAddress = InetSocketAddress(group, 1900)
-                val netIf = NetworkInterface.getNetworkInterfaces()?.asSequence()?.firstOrNull { ni ->
-                    ni.isUp && ni.supportsMulticast() && !ni.isLoopback
-                }
-                runCatching { s.leaveGroup(groupAddress, netIf) }
-                s.close()
-            }
-        } catch (e: Exception) {
-            // Ignore
+    private class Session {
+        lateinit var job: Job
+        private var socket: MulticastSocket? = null
+
+        @Synchronized
+        fun attachSocket(socket: MulticastSocket): Boolean {
+            if (!job.isActive) return false
+            this.socket = socket
+            return true
         }
 
-        val lock = multicastLock
-        multicastLock = null
-        try {
-            if (lock?.isHeld == true) {
-                lock.release()
-            }
-        } catch (e: Exception) {
-            // Ignore
+        @Synchronized
+        fun stop() {
+            job.cancel()
+            socket?.close()
         }
     }
 
     companion object {
         private const val TAG = "RokuSsdpListener"
+        private const val RECEIVE_TIMEOUT_MILLIS = 1_000
 
         /**
          * Returns true if [data][0..[length]) contains the ASCII byte sequence `roku:ecp`

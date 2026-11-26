@@ -4,6 +4,7 @@ import com.rgremote.app.data.registry.DeviceRegistry
 import com.rgremote.app.domain.DeviceType
 import com.rgremote.app.domain.RegisteredDevice
 import com.rgremote.app.roku.RokuEcpClient
+import kotlinx.coroutines.CancellationException
 
 class DiscoveryService(
     private val registry: DeviceRegistry,
@@ -15,7 +16,7 @@ class DiscoveryService(
         val found = rokuSsdpDiscovery.scan()
         found.forEach { discovered ->
             val enriched = if (discovered.type == DeviceType.ROKU_TV) {
-                runCatching {
+                try {
                     val info = rokuClient.queryDeviceInfo(discovered)
                     val identity = canonicalRokuIdentity(
                         serialNumber = info.serialNumber,
@@ -30,7 +31,11 @@ class DiscoveryService(
                         wifiMac = info.wifiMac,
                         ethernetMac = info.ethernetMac
                     )
-                }.getOrDefault(discovered)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    discovered
+                }
             } else {
                 discovered
             }
