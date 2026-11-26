@@ -61,8 +61,13 @@ From the repository root (Windows: `gradlew.bat`):
 
 - Android 8.0+ (minSdk 26) phone.
 - Phone and TV on the same subnet with multicast allowed.
-- Roku TV: **Settings > System > Advanced system settings > Control by mobile
-  apps > Network access** set to Enabled or Permissive.
+- On a Roku TV, set **Control by mobile apps** to **Enabled**
+  under **Settings > System > Advanced system settings**. Some versions show a
+  **Network access** submenu. [Roku setup guide](https://support.roku.com/article/article/install-the-mobile-app)
+- On a TCL Roku TV, turn on **Fast TV Start** under **Settings > System > Power** to
+  keep the TV reachable in standby. [TCL Fast TV Start guide](https://support.tcl.com/en_US/us-how-to-enable-fast-tv-start-rokutv)
+- For a TCL Google TV or Android TV, use Google TV discovery and PIN pairing on the
+  same Wi-Fi network. [TCL Google TV remote guide](https://support.tcl.com/en_US/us-googletv-setup-configuration/control-your-tcl-google-tv-with-the-google-home-app)
 
 ## Getting the app
 
@@ -84,8 +89,8 @@ The debug APK lands in `app/build/outputs/apk/debug/`.
 
 1. Set the Roku network-access setting above.
 2. Scan with the app's scan button to discover the Roku via SSDP.
-3. Keep Google TV discovery running and pair with the 6-character PIN shown
-   on the TV.
+3. For Google TV, keep Google TV discovery running and pair with the
+   6-character PIN shown on the TV.
 4. Map the Google TV box to its Roku HDMI port before using
    **Watch Google TV**.
 

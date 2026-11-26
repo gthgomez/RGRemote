@@ -5,6 +5,7 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.VolumeCommand
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.EOFException
 import java.io.InputStream
 import java.net.SocketTimeoutException
 import org.junit.Assert.assertEquals
@@ -41,11 +42,13 @@ private fun framedBytes(vararg payloads: ByteArray): ByteArray =
  * further read, simulating the drain window elapsing on a quiet TLS link.
  */
 private class DrainWindowTransport(script: ByteArray) : GoogleTvRemoteTransport {
+    var closed = false
     override val input: InputStream = object : InputStream() {
         private var index = 0
 
         override fun read(): Int =
             if (index < script.size) script[index++].toInt() and 0xFF
+            else if (closed) -1
             else throw SocketTimeoutException("drain window elapsed")
 
         override fun available(): Int = script.size - index
@@ -221,8 +224,31 @@ class GoogleTvRemoteSessionTest {
         val session = GoogleTvRemoteV2Session(transport)
 
         session.send(RemoteCommand.Home)
+        session.send(RemoteCommand.Dpad(DpadDirection.LEFT))
 
         assertTrue(containsKeyCode(transport.output.toByteArray(), GoogleTvRemoteProtocol.KEYCODE_HOME))
+        assertTrue(containsKeyCode(transport.output.toByteArray(), GoogleTvRemoteProtocol.KEYCODE_DPAD_LEFT))
+    }
+
+    @Test
+    fun send_reportsClosedCachedConnectionBeforeWritingAnotherKey() {
+        val transport = DrainWindowTransport(
+            framedBytes(
+                serverRemoteConfigure(GoogleTvRemoteProtocol.FEATURE_MASK),
+                serverRemoteSetActive(),
+                serverRemoteStart(),
+            ),
+        )
+        val session = GoogleTvRemoteV2Session(transport)
+        session.send(RemoteCommand.Home)
+        transport.closed = true
+        val sentBytes = transport.output.size()
+
+        val error = runCatching { session.send(RemoteCommand.Dpad(DpadDirection.LEFT)) }.exceptionOrNull()
+
+        assertTrue(error is GoogleTvRemoteSessionUnavailableException)
+        assertTrue(error?.cause is EOFException)
+        assertEquals(sentBytes, transport.output.size())
     }
 
     @Test

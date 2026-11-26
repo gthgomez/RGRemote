@@ -28,7 +28,6 @@ internal class SslGoogleTvRemoteTransport(
     override fun pendingBytes(): Int = socket.inputStream.available()
 
     override fun withDrainReadTimeout(block: () -> Unit) {
-        val previous = socket.soTimeout
         socket.soTimeout = drainTimeoutMillis
         try {
             block()
@@ -50,6 +49,10 @@ internal class StreamGoogleTvRemoteTransport(
 /** The server explicitly rejected a command (e.g. remote deauthorized); must reach the caller. */
 internal class GoogleTvRemoteServerException(message: String) : IOException(message)
 
+/** The cached connection failed before this command was sent, so reconnecting can safely retry it. */
+internal class GoogleTvRemoteSessionUnavailableException(cause: IOException) :
+    IOException("Google TV connection closed before sending the command", cause)
+
 /**
  * A timeout or EOF struck after part of a frame was consumed: the prefix is
  * unrecoverable, so framing can no longer be trusted and the session must be
@@ -70,17 +73,35 @@ internal class GoogleTvRemoteV2Session(
     private var activeFeatures = GoogleTvRemoteProtocol.FEATURE_MASK
     private var sentInitialFallback = false
     private var negotiated = false
+    private var drainFailure: IOException? = null
 
     fun send(command: RemoteCommand) {
         if (!negotiated) {
             negotiateUntilStarted()
             negotiated = true
         } else {
-            drainServerMessages()
+            drainFailure?.let { throw GoogleTvRemoteSessionUnavailableException(it) }
+            try {
+                drainServerMessages()
+            } catch (error: GoogleTvRemoteServerException) {
+                throw error
+            } catch (error: IOException) {
+                throw GoogleTvRemoteSessionUnavailableException(error)
+            }
         }
         requireFeature(command.requiredFeature())
         output.writeFrame(command.toRemoteMessage())
-        drainServerMessages()
+        try {
+            drainServerMessages()
+        } catch (error: GoogleTvRemoteServerException) {
+            throw error
+        } catch (error: GoogleTvRemoteStreamDesyncException) {
+            throw error
+        } catch (error: IOException) {
+            // Some commands, such as powering off, can close the connection after the write.
+            // Reconnect before the next command because delivery of this one is uncertain.
+            drainFailure = error
+        }
     }
 
     private fun negotiateUntilStarted() {
@@ -108,25 +129,11 @@ internal class GoogleTvRemoteV2Session(
     }
 
     private fun drainServerMessages() {
-        try {
-            while (transport.pendingBytes() > 0) {
-                readAndHandleServerMessage(onTimeout = { return })
-            }
-            transport.withDrainReadTimeout {
-                try {
-                    readAndHandleServerMessage(onTimeout = { true })
-                } catch (_: SocketTimeoutException) {
-                    // Expected when no more messages are pending.
-                }
-            }
-        } catch (e: GoogleTvRemoteServerException) {
-            // Explicit server rejection must surface as a command failure, not be drained away.
-            throw e
-        } catch (e: GoogleTvRemoteStreamDesyncException) {
-            // Fail the send so the caller recycles this session instead of misframing forever.
-            throw e
-        } catch (_: IOException) {
-            // Stream ended or framing broke; caller will open a fresh session on the next send.
+        while (transport.pendingBytes() > 0) {
+            readAndHandleServerMessage(onTimeout = { return })
+        }
+        transport.withDrainReadTimeout {
+            readAndHandleServerMessage(onTimeout = { false })
         }
     }
 

@@ -9,8 +9,10 @@ import com.rgremote.app.domain.RemoteCommand
 import com.rgremote.app.domain.RokuApp
 import com.rgremote.app.domain.RokuDeviceInfo
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -172,13 +174,16 @@ class RokuConnectionCoordinatorTest {
     @Test
     fun probeDeviceInfo_skipsRescanWhenNetworkAccessDenied() = runBlocking {
         var scanCalls = 0
+        var probeAttempts = 0
         val device = testDevice()
         val gateway = object : RokuEcpGateway {
             override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> =
                 Result.failure(UnsupportedOperationException())
 
-            override suspend fun queryDeviceInfo(device: RegisteredDevice): RokuDeviceInfo =
+            override suspend fun queryDeviceInfo(device: RegisteredDevice): RokuDeviceInfo {
+                probeAttempts++
                 throw RokuNetworkAccessException("query/device-info", 403)
+            }
 
             override suspend fun queryActiveApp(device: RegisteredDevice): ActiveApp? = null
 
@@ -198,7 +203,44 @@ class RokuConnectionCoordinatorTest {
 
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is RokuNetworkAccessException)
+        assertEquals(1, probeAttempts)
         assertEquals(0, scanCalls)
+    }
+
+    @Test
+    fun sendWithRecovery_stopsAfterNetworkAccessDenial() = runBlocking {
+        val denied = RokuNetworkAccessException("keypress/PowerOff", 403)
+        var sendAttempts = 0
+        val coordinator = RokuConnectionCoordinator(
+            rokuAdapter = object : FailingGateway() {
+                override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> {
+                    sendAttempts++
+                    return Result.failure(denied)
+                }
+            },
+            rescan = { error("Denied commands should not rescan") },
+            lookup = { null },
+            retryDelaysMillis = listOf(0L),
+        )
+
+        val result = coordinator.sendWithRecovery(testDevice(), RemoteCommand.PowerOff)
+
+        assertSame(denied, result.exceptionOrNull())
+        assertEquals(1, sendAttempts)
+    }
+
+    @Test
+    fun sendWithRecovery_propagatesCancellationDuringRescan() = runBlocking {
+        val cancellation = CancellationException("Scan cancelled")
+        val coordinator = RokuConnectionCoordinator(
+            rokuAdapter = FailingGateway(),
+            rescan = { throw cancellation },
+            lookup = { null },
+        )
+
+        val result = runCatching { coordinator.sendWithRecovery(testDevice(), RemoteCommand.Home) }
+
+        assertSame(cancellation, result.exceptionOrNull())
     }
 
     @Test
@@ -240,6 +282,20 @@ class RokuConnectionCoordinatorTest {
         assertEquals("DisplayOff", result.getOrNull()?.powerMode)
         assertEquals(2, probeAttempts)
         assertEquals(0, scanCalls)
+    }
+
+    private open class FailingGateway : RokuEcpGateway {
+        override suspend fun send(device: RegisteredDevice, command: RemoteCommand): Result<Unit> =
+            Result.failure(IOException("Connection timed out"))
+
+        override suspend fun queryDeviceInfo(device: RegisteredDevice): RokuDeviceInfo =
+            throw UnsupportedOperationException()
+
+        override suspend fun queryActiveApp(device: RegisteredDevice): ActiveApp? =
+            throw UnsupportedOperationException()
+
+        override suspend fun queryApps(device: RegisteredDevice): List<RokuApp> =
+            throw UnsupportedOperationException()
     }
 
     private fun testDevice(id: String = "roku:test", ipAddress: String = "192.168.1.50"): RegisteredDevice =

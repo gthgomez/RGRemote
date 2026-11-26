@@ -41,7 +41,7 @@ class GoogleTvNsdDiscovery(
             override fun onDiscoveryStarted(serviceType: String) = Unit
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
-                if (serviceInfo.serviceType != SERVICE_TYPE) return
+                if (!isGoogleTvRemoteServiceType(serviceInfo.serviceType)) return
                 queueResolve(serviceInfo, generation, onDevice, onError)
             }
 
@@ -195,3 +195,6 @@ class GoogleTvNsdDiscovery(
         private const val RESOLVE_TIMEOUT_MILLIS = 8_000L
     }
 }
+
+internal fun isGoogleTvRemoteServiceType(serviceType: String): Boolean =
+    serviceType.trim('.').equals(GoogleTvNsdDiscovery.SERVICE_TYPE.trimEnd('.'), ignoreCase = true)
